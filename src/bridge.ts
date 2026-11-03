@@ -390,6 +390,7 @@ export class Bridge {
 		const via = typeof p.via === "string" && p.via ? p.via : undefined;
 		if (via === "herdr" || (!via && inHerdr())) {
 			if (!inHerdr()) throw new Error("this pi does not run inside herdr");
+			// spawnPi trims the prompt itself (and guards a leading dash)
 			return spawnPi({ cwd: String(p.cwd ?? ""), prompt, spawnId });
 		}
 		const all = starters(this.pi);

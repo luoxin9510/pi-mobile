@@ -196,7 +196,15 @@ test("prompts from the phone reach pi, steering or queueing while it works", asy
 	await assert.rejects(call("send", { text: "  " }), /empty/);
 });
 
-test("another extension can start sessions for the phone; phone calls are reported as activity", async () => {
+test("another extension can start sessions for the phone; phone calls are reported as activity", async (t) => {
+	// outside herdr whatever pane the tests run in: a herdr default would start a real tab
+	const herdr = { env: process.env.HERDR_ENV, sock: process.env.HERDR_SOCKET_PATH };
+	delete process.env.HERDR_ENV;
+	delete process.env.HERDR_SOCKET_PATH;
+	t.after(() => {
+		if (herdr.env !== undefined) process.env.HERDR_ENV = herdr.env;
+		if (herdr.sock !== undefined) process.env.HERDR_SOCKET_PATH = herdr.sock;
+	});
 	const activity: string[] = [];
 	const offActivity = h.events.on("pi-mobile:activity", (d: any) => activity.push(d.action));
 	await call("models");

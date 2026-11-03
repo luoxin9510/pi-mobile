@@ -24,6 +24,7 @@ import {
 	toolTitle,
 } from "./protocol.ts";
 import type { Config } from "./store.ts";
+import { changes, diff, file } from "./changes.ts";
 import { inHerdr, spawnPi } from "./herdr.ts";
 import type { VoiceHost } from "pi-speech/host";
 import { countWord, describeActivity, firstSentences, speakable } from "pi-speech/speech";
@@ -408,6 +409,13 @@ export class Bridge {
 				return this.answer(String(p.id), p.value);
 			case "models":
 				return this.models();
+			// What pi changed in this folder (read-only): the list, one file's diff, a file's text.
+			case "changes":
+				return changes(this.ctx.cwd);
+			case "diff":
+				return diff(this.ctx.cwd, String(p.path ?? ""));
+			case "file":
+				return file(this.ctx.cwd, String(p.path ?? ""));
 			case "setModel": {
 				const model = this.ctx.modelRegistry.find(String(p.provider), String(p.id));
 				if (!model) throw new Error("unknown model");

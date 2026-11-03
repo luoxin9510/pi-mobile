@@ -1703,6 +1703,7 @@
 			// Narrow screens hide the header's model chip (app.css), so the menu offers it.
 			if (info?.model && getComputedStyle($("modelBtn")).display === "none")
 				add(tr("Model"), modelSheet, "", "chip", `${shortModel(info.model.name || info.model.id)}${info.thinking ? ` · ${tr("thinking {level}", { level: info.thinking })}` : ""}`);
+			if (S.current) add(tr("Changes"), () => changesSheet(), "", "file", tr("What pi changed in this folder"));
 			if (S.current) {
 				add(tr("Compact context"), async () => {
 					closeSheet();
@@ -1805,6 +1806,135 @@
 			note.append(icon("lock"), tr("End-to-end encrypted"));
 			body.appendChild(note);
 		}, { title: "pi mobile", subtitle: several() ? tr("Connected to {n} computers", { n: fleet.machines.length }) : tr("Connected to {host}", { host: S.device?.host || tr("your computer") }) });
+	}
+
+	// ── changes: what pi changed in the session's folder (src/changes.ts) ─────────
+	// Three sheets, each with a way back: the changed files, one file's diff, the file as it is now.
+	const CHANGE_LOOK = {
+		M: ["pencil", tr("Modified")],
+		A: ["plus", tr("Added")],
+		"?": ["plus", tr("New")],
+		D: ["x", tr("Deleted")],
+		U: ["alert", tr("Conflict")],
+	};
+	/** Answers for a sheet that is gone (closed, or another opened) are dropped. */
+	let changesSeq = 0;
+	async function changesLoad(title, m, p, agent) {
+		const seq = ++changesSeq;
+		openSheet((body) => body.appendChild(el("p", "note", tr("Loading…"))), { title });
+		try {
+			const r = await call(m, p, agent);
+			return seq === changesSeq && !$("sheet").hidden ? r : null;
+		} catch (e) {
+			if (seq === changesSeq) {
+				closeSheet();
+				toast(e.message, "error");
+			}
+			return null;
+		}
+	}
+	function splitPath(path) {
+		const i = path.lastIndexOf("/");
+		return i < 0 ? ["", path] : [path.slice(0, i), path.slice(i + 1)];
+	}
+	function sizeText(bytes) {
+		return bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+	}
+	/** "+12 −3" in the diff colours, or "binary". */
+	function deltaNode(f) {
+		const d = el("span", "delta");
+		if (f.binary) d.textContent = tr("binary");
+		else if (f.add !== undefined) d.append(el("span", "a", `+${f.add}`), el("span", "d", `−${f.del}`));
+		return d;
+	}
+	function backButton(label, onclick) {
+		const b = el("button", "btn");
+		b.append(icon("chev-right", "back"), label);
+		b.onclick = onclick;
+		return b;
+	}
+
+	async function changesSheet(agent = S.current) {
+		const c = await changesLoad(tr("Changes"), "changes", {}, agent);
+		if (!c) return;
+		const add = c.repo ? c.files.reduce((n, f) => n + (f.add || 0), 0) : 0;
+		const del = c.repo ? c.files.reduce((n, f) => n + (f.del || 0), 0) : 0;
+		openSheet(
+			(body) => {
+				if (!c.repo) return body.appendChild(el("p", "note", tr("This session's folder isn't in a git repository, so there are no changes to show.")));
+				if (!c.files.length) body.appendChild(el("p", "note", tr("No uncommitted changes. Everything here matches the last commit.")));
+				else {
+					section(body, tr("Files"), c.files.length + c.more);
+					const g = group(body);
+					for (const f of c.files) {
+						const [dir, name] = splitPath(f.path);
+						const [lead, label] = CHANGE_LOOK[f.status] || CHANGE_LOOK.M;
+						row(g, {
+							lead,
+							title: name,
+							sub: [label, dir].filter(Boolean).join(" · "),
+							trail: deltaNode(f),
+							cls: `change${f.status === "D" ? " deleted" : ""}`,
+							label: `${f.path}, ${label}${f.binary ? "" : f.add !== undefined ? `, +${f.add} −${f.del}` : ""}`,
+							onclick: () => diffSheet(f, agent),
+						});
+					}
+					if (c.more) body.appendChild(el("p", "note", tr("…and {n} more files not listed.", { n: c.more })));
+				}
+				const again = el("button", "btn");
+				again.append(icon("refresh"), tr("Refresh"));
+				again.onclick = () => changesSheet(agent);
+				body.appendChild(again);
+			},
+			{
+				title: tr("Changes"),
+				subtitle: c.repo ? [splitPath(c.root)[1], c.branch, c.files.length ? `+${add} −${del}` : ""].filter(Boolean).join(" · ") : undefined,
+			},
+		);
+	}
+
+	async function diffSheet(f, agent = S.current) {
+		const [, name] = splitPath(f.path);
+		const r = await changesLoad(name, "diff", { path: f.path }, agent);
+		if (!r) return;
+		openSheet(
+			(body) => {
+				// The sheet's title already names the file: drop git's header (its ---/+++ would read as changed lines).
+				const hunk = r.diff.search(/^@@/m);
+				const shown = (hunk >= 0 ? r.diff.slice(hunk) : r.diff.replace(/^(diff --git|index |--- |\+\+\+ ).*\n/gm, "")).replace(/\n$/, "");
+				if (shown.trim()) body.appendChild(diffNode(shown));
+				else body.appendChild(el("p", "note", tr("No line changes (only the file's mode or type changed).")));
+				if (r.truncated) body.appendChild(el("p", "note", tr("The diff is long: this is its first part.")));
+				if (f.status !== "D") {
+					const whole = el("button", "btn");
+					whole.append(icon("file"), tr("View whole file"));
+					whole.onclick = () => fileSheet(f, agent);
+					body.appendChild(whole);
+				}
+				body.appendChild(backButton(tr("All changes"), () => changesSheet(agent)));
+			},
+			{ title: name, subtitle: f.path },
+		);
+	}
+
+	async function fileSheet(f, agent = S.current) {
+		const [, name] = splitPath(f.path);
+		const r = await changesLoad(name, "file", { path: f.path }, agent);
+		if (!r) return;
+		openSheet(
+			(body) => {
+				if (r.missing) body.appendChild(el("p", "note", tr("This file no longer exists.")));
+				else if (r.binary) body.appendChild(el("p", "note", tr("This is a binary file ({size}); it can't be shown as text.", { size: sizeText(r.size) })));
+				else if (r.tooBig) body.appendChild(el("p", "note", tr("This file is too big to show here ({size}).", { size: sizeText(r.size) })));
+				else body.appendChild(scrollBox(el("pre", "out file-text", r.text || "")));
+				body.appendChild(backButton(tr("Back to the diff"), () => diffSheet(f, agent)));
+				body.appendChild(backButton(tr("All changes"), () => changesSheet(agent)));
+			},
+			{
+				title: name,
+				subtitle: r.text !== undefined ? `${f.path} · ${tr("{n} lines", { n: r.text.split("\n").length - (r.text.endsWith("\n") ? 1 : 0) })}` : f.path,
+			},
+		);
 	}
 
 	/** A language choice as the menu shows it; each language is named in itself. */

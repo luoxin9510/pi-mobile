@@ -3,7 +3,7 @@
 // a phone answers pi's own dialog, and answering in the terminal closes the cards.
 
 import assert from "node:assert/strict";
-import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import { type ChildProcessWithoutNullStreams, execFileSync, spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -99,4 +99,23 @@ test("questions from another extension reach every phone; a phone's answer answe
 	send({ type: "extension_ui_response", id: dialogs("input")[0].id, value: "typed in the terminal" });
 	await until(() => notes().includes("input=typed in the terminal"), 5000);
 	for (const p of phones) assert.equal((await p.waitFor((e) => e.type === "prompt_end" && e.id === i.prompt.id, 5000)).by, "terminal");
+});
+
+// The Changes sheet, through the hub to the real pi session's bridge (src/changes.ts).
+test("a phone sees what changed in the session's folder: the list, a diff, a file", async () => {
+	const ask = (m: string, p = {}) => phones[0].rpc("agent", { agent, m, p });
+	assert.deepEqual(await ask("changes"), { repo: false });
+	execFileSync("git", ["init", "-q", "-b", "main"], { cwd: dir });
+	writeFileSync(join(dir, "hello.txt"), "hi from pi\n");
+	const c = await ask("changes");
+	assert.equal(c.repo, true);
+	assert.equal(c.branch, "main");
+	assert.deepEqual(
+		c.files.find((f: any) => f.path === "hello.txt"),
+		{ path: "hello.txt", status: "?", add: 1, del: 0 },
+	);
+	assert.match((await ask("diff", { path: "hello.txt" })).diff, /^\+hi from pi$/m);
+	assert.equal((await ask("file", { path: "hello.txt" })).text, "hi from pi\n");
+	// A real file outside the folder (enough ../ reaches /etc/hosts) is refused, not read.
+	await assert.rejects(ask("file", { path: `${"../".repeat(20)}etc/hosts` }), /outside this project/);
 });

@@ -26,6 +26,7 @@ import {
 import type { Config } from "./store.ts";
 import { changes, diff, file } from "./changes.ts";
 import { inHerdr, spawnPi } from "./herdr.ts";
+import { checkFolder, noteActivity, starters } from "./starters.ts";
 import type { VoiceHost } from "pi-speech/host";
 import { countWord, describeActivity, firstSentences, speakable } from "pi-speech/speech";
 
@@ -191,6 +192,7 @@ export class Bridge {
 			}
 		} catch {}
 		const usage = safe(() => ctx.getContextUsage());
+		const others = starters(this.pi).map(({ id, label }) => ({ id, label }));
 		return {
 			agent: agentId(),
 			pid: process.pid,
@@ -206,6 +208,7 @@ export class Bridge {
 			queued: safe(() => ctx.hasPendingMessages()) ?? false,
 			last,
 			herdr: inHerdr() || undefined,
+			starters: others.length ? others : undefined,
 			spawn: process.env.PI_MOBILE_SPAWN || undefined,
 			since: this.status === "working" && this.runStartedAt ? this.runStartedAt : undefined,
 		};
@@ -378,8 +381,31 @@ export class Bridge {
 
 	// ── remote requests ────────────────────────────────────────────────────────────
 
+	/**
+	 * New session for the phone: in a herdr tab (`via: "herdr"`, or by default inside herdr),
+	 * or through a starter another extension registered (src/starters.ts).
+	 */
+	private async spawn(p: any): Promise<unknown> {
+		const prompt = typeof p.prompt === "string" ? p.prompt : undefined;
+		const spawnId = String(p.spawnId ?? "");
+		const via = typeof p.via === "string" && p.via ? p.via : undefined;
+		if (via === "herdr" || (!via && inHerdr())) {
+			if (!inHerdr()) throw new Error("this pi does not run inside herdr");
+			// spawnPi trims the prompt itself (and guards a leading dash)
+			return spawnPi({ cwd: String(p.cwd ?? ""), prompt, spawnId });
+		}
+		const all = starters(this.pi);
+		const starter = via ? all.find((s) => s.id === via) : all[0];
+		if (!starter) throw new Error(via ? `${via} can't start sessions on this computer` : "nothing on this computer can start a session");
+		const cwd = checkFolder(String(p.cwd ?? ""));
+		const r = await starter.start({ cwd, prompt: prompt?.trim() || undefined, env: { PI_MOBILE_SPAWN: spawnId } });
+		return { name: typeof r?.name === "string" ? r.name : "" };
+	}
+
 	private async handle(m: string, p: any): Promise<unknown> {
 		const device = p?._device as { id: string; name: string } | undefined;
+		// a host that stops idle sessions (pi-roost) keeps the ones a phone is using
+		if (device) noteActivity(this.pi, m);
 		const k = actionKey(p?._k);
 		// A repeated phone action (same key) runs once; repeats get the first outcome (issue #1).
 		if (k && device && ACTIONS.has(m)) return this.once.run(`${device.id}:${m}:${k}`, () => this.dispatch(m, p, device));
@@ -432,7 +458,7 @@ export class Bridge {
 				this.ctx.compact(p.instructions ? { customInstructions: String(p.instructions) } : undefined);
 				return { ok: true };
 			case "spawn":
-				return spawnPi({ cwd: String(p.cwd ?? ""), prompt: typeof p.prompt === "string" ? p.prompt : undefined, spawnId: String(p.spawnId ?? "") });
+				return this.spawn(p);
 			case "commands":
 				return this.pi
 					.getCommands()

@@ -1,12 +1,12 @@
 // Optional herdr integration. Everything here is a no-op unless pi runs inside herdr
 // (HERDR_ENV=1 with a socket), so pi-mobile never depends on herdr.
 
-import { statSync } from "node:fs";
 import { createConnection } from "node:net";
-import { basename, isAbsolute, resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { randomId } from "./crypto.ts";
+import { checkFolder } from "./starters.ts";
 
 export function inHerdr(env = process.env): boolean {
 	return env.HERDR_ENV === "1" && !!env.HERDR_SOCKET_PATH;
@@ -85,13 +85,7 @@ export interface SpawnRequest {
  * starts pi in it, shared with the phone, optionally with a first prompt.
  */
 export async function spawnPi(req: SpawnRequest, call: typeof herdrCall = herdrCall): Promise<{ name: string; paneId: string }> {
-	const cwd = req.cwd.replace(/^~(?=\/|$)/, process.env.HOME ?? "~");
-	if (!isAbsolute(cwd)) throw new Error("choose an absolute folder");
-	let isDir = false;
-	try {
-		isDir = statSync(cwd).isDirectory();
-	} catch {}
-	if (!isDir) throw new Error(`${cwd} is not a folder on this machine`);
+	const cwd = checkFolder(req.cwd);
 
 	const env = { PI_MOBILE_SPAWN: req.spawnId };
 	const label = basename(cwd) || cwd;

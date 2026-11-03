@@ -159,6 +159,11 @@ globalThis.PiLocaleZh = {
 	Folder: "文件夹",
 	"First prompt": "第一条提示",
 	"Starts pi in a new herdr tab on {where}": "在 {where} 的新 herdr 标签页里启动 pi",
+	"{way} on {where}": "在 {where} 上启动：{way}",
+	"Start in": "启动方式",
+	"herdr tab": "herdr 标签页",
+	"Background session": "后台会话",
+	"No computer here can start a session": "没有电脑能在这里启动会话",
 
 	// ── model ────────────────────────────────────────────────────────────────────
 	"Loading models…": "正在加载模型…",

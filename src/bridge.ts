@@ -2,7 +2,7 @@
 // serves snapshots, executes remote commands, and lets a phone answer extension dialogs.
 
 import { basename } from "node:path";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { type ExtensionAPI, type ExtensionContext, ExtensionEditorComponent } from "@earendil-works/pi-coding-agent";
 import { randomId } from "./crypto.ts";
 import { actionKey, Once } from "./once.ts";
 
@@ -80,6 +80,8 @@ export class Bridge {
 	private status: Status = "idle";
 	private prompts = new Map<string, OpenPrompt>();
 	private terminalPrompt = 0;
+	/** For each open terminal dialog (pi reports only the outermost), whether it counts as waiting. */
+	private terminalOpen: boolean[] = [];
 	private streamKey?: string;
 	private partial: unknown;
 	private streamBuf = new Map<string, { i: number; kind: "text" | "thinking" | "tool"; delta: string; name?: string }>();
@@ -338,14 +340,26 @@ export class Bridge {
 	}
 
 	terminalPromptChanged(delta: 1 | -1, kind: string, title?: string): void {
-		// select/confirm/input are mirrored as answerable prompts; others only mark the session as waiting.
-		if (kind === "select" || kind === "confirm" || kind === "input") return;
-		this.terminalPrompt = Math.max(0, this.terminalPrompt + delta);
-		if (delta > 0) {
-			this.emit({ type: "notice", level: "warning", text: `Waiting for input in the terminal${title ? `: ${title}` : ""}` });
-			this.attention("needs you", title ? `In the terminal: ${title}` : "Input needed in the terminal", true);
+		if (delta < 0) {
+			// Closes match opens; a close for a dialog opened before this bridge existed has nothing to undo.
+			if (this.terminalOpen.pop()) {
+				this.terminalPrompt = Math.max(0, this.terminalPrompt - 1);
+				this.pushInfo();
+			}
+			return;
 		}
+		const counts = waitsOnTerminal(kind, this.status === "working", this.prompts.size > 0);
+		this.terminalOpen.push(counts);
+		if (!counts) return;
+		this.terminalPrompt++;
+		this.emit({ type: "notice", level: "warning", text: `Waiting for input in the terminal${title ? `: ${title}` : ""}` });
+		this.attention("needs you", title ? `In the terminal: ${title}` : "Input needed in the terminal", true);
 		this.pushInfo();
+	}
+
+	/** herdr's blocked mark for a dialog pi reports under another kind (the editor shown via ui.custom). */
+	herdrBlocked(active: boolean, label: string): void {
+		if (inHerdr() && this.ctx.mode === "tui") this.pi.events.emit("herdr:blocked", { active, label });
 	}
 
 	mirrorNotice(text: string, level: "info" | "warning" | "error"): void {
@@ -374,7 +388,7 @@ export class Bridge {
 		if (p.kind === "select" && value !== undefined && !(typeof value === "string" && p.options?.includes(value)))
 			throw new Error("not one of the options");
 		if (p.kind === "confirm" && typeof value !== "boolean") throw new Error("expected yes or no");
-		if (p.kind === "input" && value !== undefined && typeof value !== "string") throw new Error("expected text");
+		if ((p.kind === "input" || p.kind === "editor") && value !== undefined && typeof value !== "string") throw new Error("expected text");
 		open.answer(value);
 		return { ok: true };
 	}
@@ -623,7 +637,7 @@ function patchUI(ctx: ExtensionContext): void {
 	if (!ctx.hasUI) return;
 	const ui = ctx.ui as UI;
 	if (ui[PATCHED]) return;
-	const orig = { select: ui.select, confirm: ui.confirm, input: ui.input, notify: ui.notify };
+	const orig = { select: ui.select, confirm: ui.confirm, input: ui.input, editor: ui.editor, notify: ui.notify };
 	ui[PATCHED] = orig;
 
 	ui.select = (title, options, opts) =>
@@ -632,10 +646,59 @@ function patchUI(ctx: ExtensionContext): void {
 		race({ kind: "confirm", title, message }, (signal) => orig.confirm.call(ui, title, message, { ...opts, signal }), opts);
 	ui.input = (title, placeholder, opts) =>
 		race({ kind: "input", title, placeholder }, (signal) => orig.input.call(ui, title, placeholder, { ...opts, signal }), opts);
+	// pi's editor dialog takes no signal, so a phone answer could not close it. In the terminal the
+	// same component is shown through ui.custom instead, which hands over `done`.
+	const hosted = ctx.mode === "tui" && typeof ui.custom === "function";
+	ui.editor = (title, prefill) =>
+		activeBridge() && hosted
+			? race({ kind: "editor", title, ...(prefill ? { prefill } : {}) }, (signal) => terminalEditor(ui, title, prefill, signal), undefined)
+			: orig.editor.call(ui, title, prefill);
 	ui.notify = (message, type) => {
 		orig.notify.call(ui, message, type);
 		activeBridge()?.mirrorNotice(String(message), type ?? "info");
 	};
+}
+
+/** pi's own multi-line editor dialog, closed when `signal` aborts (the phone answered first). */
+async function terminalEditor(ui: UI, title: string, prefill: string | undefined, signal: AbortSignal | undefined): Promise<string | undefined> {
+	const bridge = activeBridge();
+	bridge?.herdrBlocked(true, title);
+	try {
+		return await hostedEditor(ui, title, prefill, signal);
+	} finally {
+		bridge?.herdrBlocked(false, title);
+	}
+}
+
+function hostedEditor(ui: UI, title: string, prefill: string | undefined, signal: AbortSignal | undefined): Promise<string | undefined> {
+	// `blocked` reports pi as waiting on you (OSC 7501), the way pi's own editor dialog does; pi before 1.5 ignores it.
+	const options = { blocked: { kind: "question", message: title } } as Parameters<UI["custom"]>[1];
+	return ui.custom<string | undefined>((tui, _theme, keybindings, done) => {
+		let closed = false;
+		const finish = (v: string | undefined) => {
+			if (closed) return;
+			closed = true;
+			done(v);
+		};
+		if (signal?.aborted) queueMicrotask(() => finish(undefined));
+		else signal?.addEventListener("abort", () => finish(undefined), { once: true });
+		// Ctrl+G opens $VISUAL/$EDITOR: an extension cannot read pi's own external-editor setting.
+		return new ExtensionEditorComponent(tui, keybindings, title, prefill, (v) => finish(v), () => finish(undefined));
+	}, options);
+}
+
+/**
+ * Whether a terminal dialog the phone cannot answer leaves the session waiting on you.
+ * select/confirm/input are mirrored as answerable prompts. A mirrored editor is shown through
+ * ui.custom while its phone prompt is already open; an editor pi reports as such is not mirrored. Other custom components are mostly panels you
+ * opened yourself, such as an agent view or the pairing QR code: they hold up pi only when a tool
+ * opened one in the middle of a run.
+ */
+export function waitsOnTerminal(kind: string, working: boolean, mirroredOpen: boolean): boolean {
+	if (kind === "select" || kind === "confirm" || kind === "input") return false;
+	if (mirroredOpen) return false;
+	if (kind === "editor") return true; // not mirrored: outside the TUI, or opened before sharing started
+	return kind !== "custom" || working;
 }
 
 async function race<T>(

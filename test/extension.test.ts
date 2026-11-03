@@ -10,6 +10,8 @@ import { freePort, Phone, until } from "./phone.ts";
 const dir = mkdtempSync(join(tmpdir(), "remote-ext-"));
 process.env.PI_CODING_AGENT_DIR = dir;
 const { default: remoteControl } = await import("../src/index.ts");
+const { initTheme } = await import("@earendil-works/pi-coding-agent");
+initTheme("dark"); // the real editor component draws with pi's theme
 const { processHub } = await import("../src/link.ts");
 const { stateDir } = await import("../src/store.ts");
 
@@ -20,7 +22,7 @@ function host() {
 	const sent: any[] = [];
 	const statuses: (string | undefined)[] = [];
 	const notes: string[] = [];
-	const localDialogs: { title: string; resolve: (v: any) => void; aborted: boolean }[] = [];
+	const localDialogs: { title: string; resolve: (v: any) => void; aborted: boolean; component?: any; options?: any }[] = [];
 	let idle = true;
 	let thinking = "medium";
 	const branch: any[] = [
@@ -48,7 +50,18 @@ function host() {
 		setStatus: (_k: string, v?: string) => statuses.push(v),
 		onTerminalInput: () => () => {},
 		theme: { fg: (_c: string, t: string) => t, bold: (t: string) => t },
-		custom: async () => undefined,
+		// Like pi: the component's `done` closes it. `resolve` stands for the user finishing it in the terminal.
+		custom: (factory: any, options?: any) =>
+			new Promise((resolve) => {
+				const d: any = { title: "custom", resolve, aborted: false, options };
+				localDialogs.push(d);
+				const tui = { requestRender() {}, terminal: { rows: 40, columns: 80 } };
+				d.component = factory(tui, ui.theme, { matches: () => false }, (v: unknown) => {
+					d.aborted = true;
+					resolve(v);
+				});
+			}),
+		editor: (title: string) => dialog(title, undefined),
 		confirm: (title: string, _m: string, opts: any) => dialog(title, false, opts),
 		select: (title: string, _o: string[], opts: any) => dialog(title, undefined, opts),
 		input: (title: string, _p: string, opts: any) => dialog(title, undefined, opts),
@@ -397,4 +410,60 @@ test("terminal notifications are mirrored to the phone", async () => {
 	h.ctx.ui.notify("Build finished", "warning");
 	const n = await phone.waitFor((e) => e.type === "notice");
 	assert.deepEqual([n.text, n.level], ["Build finished", "warning"]);
+});
+
+test("multi-line editor dialogs are answered from the phone too; the terminal editor closes", async () => {
+	phone.events = [];
+	const text = h.ctx.ui.editor("Review the script", "echo hi\n");
+	const prompt = await phone.waitFor((e) => e.type === "prompt");
+	assert.deepEqual([prompt.prompt.kind, prompt.prompt.title, prompt.prompt.prefill], ["editor", "Review the script", "echo hi\n"]);
+	await assert.rejects(call("answer", { id: prompt.prompt.id, value: 3 }), /expected text/);
+	await call("answer", { id: prompt.prompt.id, value: "echo bye\n" });
+	assert.equal(await text, "echo bye\n");
+	const shown = h.localDialogs.at(-1)!;
+	assert.equal(shown.aborted, true, "terminal editor closed");
+	assert.deepEqual(shown.options, { blocked: { kind: "question", message: "Review the script" } }, "pi reports itself blocked");
+	assert.equal((await phone.waitFor((e) => e.type === "prompt_end")).by, "remote");
+
+	// Finished in the terminal instead: the phone's card closes.
+	phone.events = [];
+	const again = h.ctx.ui.editor("Edit the prompt");
+	const p2 = await phone.waitFor((e) => e.type === "prompt");
+	assert.equal(p2.prompt.prefill, undefined);
+	// pi's real editor component, finished in the terminal: type, then Enter.
+	const editor = h.localDialogs.at(-1)!.component;
+	assert.ok(editor.render(60).join("\n").includes("Edit the prompt"), "the terminal shows pi's editor");
+	for (const ch of "typed here") editor.handleInput(ch);
+	editor.handleInput("\r");
+	assert.equal(await again, "typed here");
+	assert.equal((await phone.waitFor((e) => e.type === "prompt_end")).by, "terminal");
+});
+
+test("a panel opened in the terminal is not a question; one a tool opens mid-run is", async () => {
+	const status = async () => (await call("snapshot")).info.status;
+	// An agent view or QR code opened while pi is idle.
+	await h.fire("ui_prompt_start", { kind: "custom" });
+	assert.equal(await status(), "idle");
+	await h.fire("ui_prompt_end", { kind: "custom" });
+	// A dialog that was open before sharing started closes: nothing to undo, nothing goes negative.
+	await h.fire("ui_prompt_end", { kind: "custom" });
+	assert.equal(await status(), "idle");
+
+	await h.fire("agent_start");
+	phone.events = [];
+	await h.fire("ui_prompt_start", { kind: "custom" });
+	await phone.waitFor((e) => e.type === "info" && e.info.status === "waiting");
+	await h.fire("ui_prompt_end", { kind: "custom" });
+	await phone.waitFor((e) => e.type === "info" && e.info.status === "working");
+	await h.fire("agent_settled", { aborted: false });
+	await phone.waitFor((e) => e.type === "info" && e.info.status === "idle");
+});
+
+test("which terminal dialogs leave a session waiting on the terminal", async () => {
+	const { waitsOnTerminal } = await import("../src/bridge.ts");
+	for (const kind of ["select", "confirm", "input"]) assert.equal(waitsOnTerminal(kind, true, false), false, kind);
+	assert.equal(waitsOnTerminal("editor", false, false), true, "an editor the phone does not mirror (outside the TUI)");
+	assert.equal(waitsOnTerminal("custom", false, false), false, "a panel opened while idle");
+	assert.equal(waitsOnTerminal("custom", true, false), true, "opened by a tool mid-run");
+	assert.equal(waitsOnTerminal("custom", true, true), false, "the editor pi-mobile shows for a phone prompt");
 });

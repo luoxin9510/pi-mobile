@@ -6,6 +6,7 @@
 (() => {
 	const MACHINES_KEY = "pi-mobile-machines";
 	const DEVICE_KEY = "pi-mobile-device"; // the single pairing before several machines; kept for the primary
+	const tr = globalThis.PiI18n?.t ?? ((s, v) => (v ? s.replace(/\{(\w+)\}/g, (m, k) => (k in v ? String(v[k]) : m)) : s));
 	const STALL_MS = 40_000; // the hub pings every 15 s; mobile browsers freeze sockets silently
 
 	class Unauthorized extends Error {}
@@ -66,7 +67,7 @@
 
 		async function rpc(id, m, p) {
 			const mc = byId(id);
-			if (!mc) throw new Error("that computer is no longer in your list");
+			if (!mc) throw new Error(tr("that computer is no longer in your list"));
 			const key = deps.unb64u(mc.k);
 			const res = await deps.fetch(`${originOf(mc)}/api/rpc`, {
 				method: "POST",
@@ -74,7 +75,7 @@
 				body: JSON.stringify({ d: mc.d, b: deps.seal(key, { t: Date.now(), m, p }) }),
 			});
 			if (res.status === 401) {
-				revoked(id, "This phone was removed from that computer");
+				revoked(id, tr("This phone was removed from that computer"));
 				throw new Unauthorized("this device is no longer paired");
 			}
 			const body = await res.json();
@@ -104,8 +105,8 @@
 		}
 		async function call(agent, m, p) {
 			const id = agentMachine.get(agent);
-			if (!id) throw new Error("that pi session is no longer connected");
-			if (conn(id).state === "offline") throw new Error(`${byId(id)?.name || "That computer"} is offline`);
+			if (!id) throw new Error(tr("that pi session is no longer connected"));
+			if (conn(id).state === "offline") throw new Error(tr("{name} is offline", { name: byId(id)?.name || tr("That computer") }));
 			if (!ACTIONS.has(m)) return rpc(id, "agent", { agent, m, p: p || {} });
 			// An action whose reply was lost may have reached pi: repeating it with the same params reuses its key,
 			// so pi performs it once and answers with the first result. Changed params (an edited composer) are a new action.
@@ -157,7 +158,7 @@
 				try {
 					const b = deps.seal(key, { t: Date.now(), hub: c.hubId, since: c.seq, focus: c.focus || undefined });
 					const res = await deps.fetch(`${originOf(mc)}/api/stream?d=${encodeURIComponent(mc.d)}&b=${b}`, { signal: ctrl.signal, cache: "no-store" });
-					if (res.status === 401) return revoked(id, "This phone was removed from that computer");
+					if (res.status === 401) return revoked(id, tr("This phone was removed from that computer"));
 					if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
 					const reader = res.body.getReader();
 					const dec = new TextDecoder();

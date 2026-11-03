@@ -12,6 +12,7 @@
 	const V = window.PiVoiceCore;
 	const $ = (id) => document.getElementById(id);
 	const app = () => window.PiMobile;
+	const tr = globalThis.PiI18n?.t ?? ((s, v) => (v ? s.replace(/\{(\w+)\}/g, (m, k) => (k in v ? String(v[k]) : m)) : s));
 	const GLOW_MS = 3000;
 	const MIN_CHUNK_MS = 10_000;
 	const MAX_CHUNK_MS = 15_000;
@@ -131,7 +132,7 @@
 				stopCapture(d);
 				d.frames = [];
 				d.lost = true;
-				if (D === d && d.shown) setUi(d.ui, "The computer lost this draft. Keep talking: when you finish, the whole recording becomes an ordinary dictation.");
+				if (D === d && d.shown) setUi(d.ui, tr("The computer lost this draft. Keep talking: when you finish, the whole recording becomes an ordinary dictation."));
 			},
 		});
 		try {
@@ -215,7 +216,7 @@
 			return lost ? { lost: true } : d.shown ? { draft: true } : null;
 		}
 		d.finishing = true;
-		if (d.shown) setUi("checking", keep ? "" : "Checking the draft against everything you said…");
+		if (d.shown) setUi("checking", keep ? "" : tr("Checking the draft against everything you said…"));
 		const rest = d.frames.length ? wav64(d.frames, d.cap?.rate || 48000) : undefined;
 		d.frames = [];
 		const r = await up.finish(rest, { elapsedMs, since: d.version, draft: d.shown || keep, check: !keep });
@@ -293,7 +294,7 @@
 			setUi("ready", r.note || "");
 		} catch (e) {
 			if (D !== d) return;
-			setUi("ready", gone(e) ? "The computer lost this draft. Keep as text keeps what is here." : `Couldn't apply the change (${e.message}).`);
+			setUi("ready", gone(e) ? tr("The computer lost this draft. Keep as text keeps what is here.") : tr("Couldn't apply the change ({error}).", { error: e.message }));
 		}
 	}
 
@@ -331,7 +332,7 @@
 		if (!canSend()) return;
 		const d = D;
 		const md = markdown();
-		if (!md.trim()) return setUi(d.ui, "The draft is empty. Keep as text closes it.");
+		if (!md.trim()) return setUi(d.ui, tr("The draft is empty. Keep as text closes it."));
 		if (!(await app().sendText(md, app().images(), app().S.current))) return;
 		app().clearAttachments();
 		if (D === d) close("sent");
@@ -346,7 +347,7 @@
 		input.value = now.trim() ? `${now.replace(/\s+$/, "")}\n\n${md}` : md;
 		close("kept");
 		app().autosize();
-		hooks.message("The draft is in the message box. What you said stays on the computer for 7 days.");
+		hooks.message(tr("The draft is in the message box. What you said stays on the computer for 7 days."));
 	}
 
 	function close(how) {
@@ -364,7 +365,7 @@
 	}
 
 	// ── the sheet ────────────────────────────────────────────────────────────────────────────────────────────────────
-	const STATE = { forming: "Listening", checking: "Checking…", changing: "Changing…", ready: "Ready to send", text: "Editing" };
+	const STATE = { forming: tr("Listening"), checking: tr("Checking…"), changing: tr("Changing…"), ready: tr("Ready to send"), text: tr("Editing") };
 
 	/** The composer grows into the draft sheet (built once; updated in place). */
 	function show() {
@@ -391,7 +392,7 @@
 		const el = (tag, cls, text) => Object.assign(document.createElement(tag), cls ? { className: cls } : {}, text ? { textContent: text } : {});
 		const head = el("div", "draft-head");
 		const names = el("div", "grow");
-		names.append(el("p", "draft-eyebrow", "Draft"), Object.assign(el("h2", "draft-title"), { id: "draftTitle" }));
+		names.append(el("p", "draft-eyebrow", tr("Draft")), Object.assign(el("h2", "draft-title"), { id: "draftTitle" }));
 		const state = Object.assign(el("p", "draft-state"), { id: "draftState" });
 		state.setAttribute("role", "status");
 		state.append(el("span", "draft-live"), el("span", "spinner"), el("span", "draft-state-text"));
@@ -406,16 +407,16 @@
 		// Without motion, the margin marks stay until you touch the draft.
 		body.addEventListener("pointerdown", () => body.querySelectorAll(".marked").forEach((b) => b.classList.remove("marked")));
 		const text = Object.assign(el("textarea", "draft-text"), { id: "draftText", hidden: true, spellcheck: true });
-		text.setAttribute("aria-label", "Draft as Markdown");
+		text.setAttribute("aria-label", tr("Draft as Markdown"));
 		text.addEventListener("input", () => app().updateSend());
 		const hearing = Object.assign(el("p", "draft-hearing"), { id: "draftHearing" });
-		hearing.append(el("span", "draft-hearing-label", "Hearing"), el("span", "draft-hearing-words"));
+		hearing.append(el("span", "draft-hearing-label", tr("Hearing")), el("span", "draft-hearing-words"));
 		const note = Object.assign(el("p", "draft-note"), { id: "draftNote" });
 		note.setAttribute("aria-live", "polite");
 		const actions = Object.assign(el("div", "draft-actions"), { id: "draftActions" });
-		const keep = Object.assign(el("button", "pill", "Keep as text"), { id: "draftKeep", title: "Put the draft in the message box" });
+		const keep = Object.assign(el("button", "pill", tr("Keep as text")), { id: "draftKeep", title: tr("Put the draft in the message box") });
 		keep.onclick = () => keepAsText();
-		const edit = Object.assign(el("button", "pill", "Edit as text"), { id: "draftEdit" });
+		const edit = Object.assign(el("button", "pill", tr("Edit as text")), { id: "draftEdit" });
 		edit.onclick = () => (D.ui === "text" ? saveText() : startText());
 		actions.append(keep, edit);
 		sheet.append(head, body, text, hearing, note, actions);
@@ -433,7 +434,7 @@
 	function showText(on) {
 		$("draftText").hidden = !on;
 		$("draftBody").hidden = on;
-		$("draftEdit").textContent = on ? "Done" : "Edit as text";
+		$("draftEdit").textContent = on ? tr("Done") : tr("Edit as text");
 		$("draftEdit").setAttribute("aria-pressed", String(on));
 	}
 
@@ -447,7 +448,7 @@
 		$("draftActions").hidden = !(ui === "ready" || ui === "text");
 		// A draft the computer lost no longer forms: the recording goes on, for an ordinary dictation.
 		$("draftHearing").hidden = ui !== "forming" || !!D.lost;
-		$("draftHint").textContent = ui === "forming" ? (D.lost ? "Still recording" : "Drafting while you talk") : ui === "ready" || ui === "text" ? "Dictate a change, or send" : "One moment…";
+		$("draftHint").textContent = ui === "forming" ? (D.lost ? tr("Still recording") : tr("Drafting while you talk")) : ui === "ready" || ui === "text" ? tr("Dictate a change, or send") : tr("One moment…");
 		noteLine();
 		app().updateSend();
 	}
@@ -473,7 +474,7 @@
 	}
 
 	function draw(view, dictated) {
-		$("draftTitle").textContent = view.title || "Untitled draft";
+		$("draftTitle").textContent = view.title || tr("Untitled draft");
 		// The latest words not yet in the draft; the line keeps its place while there are none.
 		const words = $("draftHearing").querySelector(".draft-hearing-words");
 		const hearing = view.hearing || "";

@@ -79,6 +79,7 @@ Voice mode exists for eyes-busy use. The screen is glanced at or hit blindly; so
 - Use the user's words ("session", "phone", "computer"), never internals ("bridge", "hub", "agent id").
 - Buttons are verbs or the answer itself ("Yes, do it", "Cancel", "Pair another device").
 - Spoken and voice-screen copy follows `voice.md`: outcome first, no identifiers or tool chatter.
+- **Every visible string is translatable.** The English text is the key: write `tr("Paired with {host}", { host })` (never glue a sentence from pieces; plurals are separate sentences), and add the Chinese in `web/zh.js` with the same `{placeholders}`. Static text in `index.html` (text, `aria-label`, `title`, `placeholder`) is translated at load by `web/i18n.js`. `test/i18n.test.ts` fails on a missing, stale or mismatched entry. The language is per phone (menu → Language: automatic, 中文, English). Voice mode (`web/voice.js`) and the computer's own text (errors, notices, pi's questions) are not translated yet.
 
 ## 7. Platform rules
 

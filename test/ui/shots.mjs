@@ -32,7 +32,7 @@ const { values: opt } = parseArgs({
 		out: { type: "string", default: "shots" },
 		width: { type: "string", default: "390,320" },
 		theme: { type: "string", default: "light,dark" },
-		only: { type: "string", default: "app,voice,draft,picker,machines,scan" },
+		only: { type: "string", default: "app,changes,voice,draft,picker,machines,scan" },
 		port: { type: "string", default: "7979" },
 		forced: { type: "boolean", default: false },
 		reduced: { type: "boolean", default: false },
@@ -410,6 +410,38 @@ async function session(theme, width, flow) {
 				});
 				await shot("15-focus-in-sheet");
 				await page.keyboard.press("Escape");
+			});
+		}
+
+		if (flow === "changes") {
+			await step("changes", async () => {
+				await ready();
+				await tap("#menuBtn");
+				await tap(".sheet-panel .row", "Changes");
+				await page.waitForFunction(() => document.querySelectorAll(".sheet-panel .row.change").length === 4, { timeout: 10000 });
+				report.checks[`${tag} changes list`] = await page.evaluate(() => ({
+					subtitle: document.querySelector(".sheet-head .subtitle")?.textContent,
+					rows: [...document.querySelectorAll(".sheet-panel .row.change")].map((r) => r.getAttribute("aria-label")),
+				}));
+				await shot("c1-changes");
+				await tap(".sheet-panel .row.change", "totals.ts");
+				await page.waitForFunction(() => document.querySelector(".sheet-panel pre.diff"), { timeout: 10000 });
+				await shot("c2-diff");
+				await tap(".sheet-panel .btn", "View whole file");
+				await page.waitForFunction(() => document.querySelector(".sheet-panel pre.file-text"), { timeout: 10000 });
+				await shot("c3-file");
+				await tap(".sheet-panel .btn", "All changes");
+				await tap(".sheet-panel .row.change", "logo.png");
+				await tap(".sheet-panel .btn", "View whole file");
+				await page.waitForFunction(() => /binary file/.test(document.querySelector(".sheet-panel .note")?.textContent || ""), { timeout: 10000 });
+				await shot("c4-binary");
+				await tap(".sheet-panel .btn", "All changes");
+				await tap(".sheet-panel .row.change", "old-notes.md");
+				await page.waitForFunction(() => document.querySelector(".sheet-panel pre.diff"), { timeout: 10000 });
+				// A deleted file has no "whole file" to open.
+				report.checks[`${tag} deleted file offers no whole file`] = await page.evaluate(() => ![...document.querySelectorAll(".sheet-panel .btn")].some((b) => b.textContent.includes("View whole file")));
+				await shot("c5-deleted");
+				await closeSheet();
 			});
 		}
 

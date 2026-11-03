@@ -194,12 +194,52 @@ function emit(f: Fake, ev: any): void {
 	f.link?.send({ t: "ev", ev: { ...ev, n: ++f.n } });
 }
 
+// The Changes sheet (src/changes.ts): a working tree with every kind of change.
+const FX_FILES: Record<string, { status: string; add?: number; del?: number; binary?: boolean; diff: string; text?: string; binaryFile?: boolean }> = {
+	"src/totals.ts": {
+		status: "M",
+		add: 6,
+		del: 6,
+		diff: "diff --git a/src/totals.ts b/src/totals.ts\n--- a/src/totals.ts\n+++ b/src/totals.ts\n@@ -8,12 +8,12 @@ export function total(lines: Line[]): number {\n \tlet sum = 0;\n \tfor (const l of lines) {\n-\t\tsum -= l.amount * l.qty;\n+\t\tsum += l.amount * l.qty;\n \t}\n-\treturn Math.round(sum * 100) / 100;\n+\treturn round2(sum);\n }\n",
+		text: "import type { Line } from \"./types.ts\";\n\nconst round2 = (n: number) => Math.round(n * 100) / 100;\n\n/** The order total: every line's amount times its quantity. */\nexport function total(lines: Line[]): number {\n\tlet sum = 0;\n\tfor (const l of lines) {\n\t\tsum += l.amount * l.qty;\n\t}\n\treturn round2(sum);\n}\n",
+	},
+	"test/totals.test.ts": {
+		status: "?",
+		add: 12,
+		del: 0,
+		diff: "diff --git a/test/totals.test.ts b/test/totals.test.ts\nnew file mode 100644\n--- /dev/null\n+++ b/test/totals.test.ts\n@@ -0,0 +1,12 @@\n+import assert from \"node:assert/strict\";\n+import { test } from \"node:test\";\n+import { total } from \"../src/totals.ts\";\n+\n+test(\"totals add up\", () => {\n+\tassert.equal(total([{ amount: 2.5, qty: 2 }]), 5);\n+});\n",
+		text: "import assert from \"node:assert/strict\";\nimport { test } from \"node:test\";\nimport { total } from \"../src/totals.ts\";\n\ntest(\"totals add up\", () => {\n\tassert.equal(total([{ amount: 2.5, qty: 2 }]), 5);\n});\n",
+	},
+	"docs/old-notes.md": { status: "D", add: 0, del: 3, diff: "diff --git a/docs/old-notes.md b/docs/old-notes.md\ndeleted file mode 100644\n--- a/docs/old-notes.md\n+++ /dev/null\n@@ -1,3 +0,0 @@\n-# Old notes\n-\n-Totals subtract the discount twice.\n" },
+	"assets/logo.png": { status: "M", binary: true, diff: "diff --git a/assets/logo.png b/assets/logo.png\nBinary files a/assets/logo.png and b/assets/logo.png differ\n", binaryFile: true },
+};
+
 function link(f: Fake, cfg: typeof config | typeof boxConfig, secret: string): void {
 	f.link = new HubLink({
 		config: () => cfg,
 		secret,
 		info: () => f.info,
 		onRequest: (m, p) => {
+			if (m === "changes")
+				return {
+					repo: true,
+					root: f.info.cwd,
+					branch: "fix/totals",
+					files: Object.entries(FX_FILES)
+						.map(([path, x]) => ({ path, status: x.status, ...(x.binary ? { binary: true } : { add: x.add, del: x.del }) }))
+						.sort((a, b) => a.path.localeCompare(b.path)),
+					more: 0,
+				};
+			if (m === "diff") {
+				const x = FX_FILES[String(p.path)];
+				if (!x) throw new Error("that file has no changes any more");
+				return { path: p.path, status: x.status, diff: x.diff, truncated: false };
+			}
+			if (m === "file") {
+				const x = FX_FILES[String(p.path)];
+				if (!x || x.status === "D") return { path: p.path, missing: true };
+				return x.binaryFile ? { path: p.path, binary: true, size: 48_213 } : { path: p.path, text: x.text, size: x.text?.length };
+			}
 			if (m === "snapshot") return { n: f.n, info: f.info, items: f.items, start: 0, total: f.items.length, tools: [], prompts: prompts.get(f.info.agent) ?? [] };
 			if (m === "models")
 				return {

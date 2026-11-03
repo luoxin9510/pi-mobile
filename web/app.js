@@ -5,6 +5,7 @@
 (() => {
 	const nacl = window.nacl;
 	const $ = (id) => document.getElementById(id);
+	const tr = window.PiI18n?.t ?? ((s, v) => (v ? s.replace(/\{(\w+)\}/g, (m, k) => (k in v ? String(v[k]) : m)) : s));
 	const DEVICE_KEY = "pi-mobile-device";
 	const AGENT_KEY = "pi-mobile-agent";
 	const MODE_KEY = "pi-mobile-mode";
@@ -133,7 +134,7 @@
 		const m = /[#&]p=([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)/.exec(location.hash);
 		if (!m) return false;
 		history.replaceState(null, "", location.pathname + location.search);
-		showEmpty("<h2>Pairing…</h2>");
+		showEmpty(`<h2>${tr("Pairing…")}</h2>`);
 		const key = unb64u(m[2]);
 		try {
 			const res = await fetch("api/pair", {
@@ -147,14 +148,14 @@
 			const old = fleet.primary();
 			if (old) fleet.remove(old.id);
 			fleet.add({ d: out.d, k: out.k, machine: out.machine?.id, name: out.host, primary: true });
-			toast(`Paired with ${out.host}`);
+			toast(tr("Paired with {host}", { host: out.host }));
 			return true;
 		} catch (e) {
 			if (S.device) {
-				toast(`Pairing failed: ${e.message}`, "error");
+				toast(tr("Pairing failed: {error}", { error: e.message }), "error");
 				return true;
 			}
-			showEmpty(`<h2>Pairing failed</h2><p>${esc(e.message)}</p><p>Run <code>/remote</code> in pi again and scan the new code.</p>`);
+			showEmpty(`<h2>${tr("Pairing failed")}</h2><p>${esc(e.message)}</p><p>${tr("Run <code>/remote</code> in pi again and scan the new code.")}</p>`);
 			return "failed";
 		}
 	}
@@ -185,7 +186,7 @@
 		$("olderBtn").hidden = true;
 		setHeader();
 		showEmpty(
-			`<img class="logo" src="icon.svg" alt=""><h2>Connect to pi</h2>${reason ? `<p>${esc(reason)}.</p>` : "<p>Use your pi sessions from this phone.</p>"}<ol><li><span>In pi on your computer, run <code>/remote</code></span></li><li><span>Scan the QR code with this phone's camera</span></li><li><span>Add this page to your Home Screen</span></li></ol>`,
+			`<img class="logo" src="icon.svg" alt=""><h2>${tr("Connect to pi")}</h2>${reason ? `<p>${tr("{reason}.", { reason: esc(reason) })}</p>` : `<p>${tr("Use your pi sessions from this phone.")}</p>`}<ol><li><span>${tr("In pi on your computer, run <code>/remote</code>")}</span></li><li><span>${tr("Scan the QR code with this phone's camera")}</span></li><li><span>${tr("Add this page to your Home Screen")}</span></li></ol>`,
 		);
 	}
 
@@ -224,7 +225,7 @@
 		if (S.online || !S.device) b.hidden = true;
 		else {
 			const name = fleet.get(fleet.machineOf(S.current) || id)?.name;
-			b.innerHTML = `<span class="spinner" aria-hidden="true"></span>${several() && name ? `Reconnecting to ${esc(name)}…` : "Reconnecting…"}`;
+			b.innerHTML = `<span class="spinner" aria-hidden="true"></span>${several() && name ? tr("Reconnecting to {name}…", { name: esc(name) }) : tr("Reconnecting…")}`;
 			b.className = "banner";
 			b.hidden = false;
 		}
@@ -241,7 +242,7 @@
 			S.prompts.delete(a);
 		}
 		if (!fleet.machines.length) return unpaired(reason);
-		toast(`${m.name || "A computer"} removed this phone`, "warning");
+		toast(tr("{name} removed this phone", { name: m.name || tr("A computer") }), "warning");
 		if (!S.agents.has(S.current)) {
 			S.current = pickAgent();
 			loadCurrent();
@@ -254,7 +255,7 @@
 			const hub = await fleet.rpc(id, "hub");
 			fleet.identify(id, hub.machine);
 			if (hub.protocol !== undefined && hub.protocol !== PROTOCOL) {
-				toast(`${hub.host} runs a different pi-mobile version; update it to use it here`, "warning");
+				toast(tr("{host} runs a different pi-mobile version; update it to use it here", { host: hub.host }), "warning");
 				return;
 			}
 			const mine = new Set(hub.agents.map((a) => a.agent));
@@ -284,7 +285,7 @@
 			}
 		} catch (e) {
 			if (e instanceof Unauthorized) return;
-			toast(`Sync failed: ${e.message}`, "error");
+			toast(tr("Sync failed: {error}", { error: e.message }), "error");
 		}
 	}
 
@@ -310,7 +311,7 @@
 		renderPrompts();
 		renderAttention();
 		if (!agent) {
-			showEmpty(`<img class="logo" src="icon.svg" alt=""><h2>No sessions yet</h2><p>Run <code>/remote</code> in pi on your computer and its sessions appear here.</p>`);
+			showEmpty(`<img class="logo" src="icon.svg" alt=""><h2>${tr("No sessions yet")}</h2><p>${tr("Run <code>/remote</code> in pi on your computer and its sessions appear here.")}</p>`);
 			updateComposer();
 			return;
 		}
@@ -347,10 +348,10 @@
 			renderPrompts();
 			updateComposer();
 			scrollToBottom(true);
-			if (!snap.items.length && !snap.streaming) showEmpty(`<h2>Nothing here yet</h2><p>Tell pi what to do in ${esc(snap.info?.name || "this session")}.</p>`);
+			if (!snap.items.length && !snap.streaming) showEmpty(`<h2>${tr("Nothing here yet")}</h2><p>${tr("Tell pi what to do in {name}.", { name: esc(snap.info?.name || tr("this session")) })}</p>`);
 		} catch (e) {
 			if (e instanceof Unauthorized) return; // machineRevoked() handles it
-			if (S.view === view) showEmpty(`<p>Could not load the session: ${esc(e.message)}</p>`);
+			if (S.view === view) showEmpty(`<p>${tr("Could not load the session: {error}", { error: esc(e.message) })}</p>`);
 		}
 	}
 
@@ -400,7 +401,7 @@
 			S.agents.delete(agent);
 			S.prompts.delete(agent);
 			if (agent === S.current) {
-				toast("That pi session stopped sharing", "warning");
+				toast(tr("That pi session stopped sharing"), "warning");
 				S.current = pickAgent();
 				loadCurrent();
 			}
@@ -487,9 +488,9 @@
 	/** What pi is doing right now, in one word, for the work bar: the running step, else writing or thinking. */
 	function phase() {
 		const run = document.querySelector("#liveTools .tstate.run, #transcript .tstate.run")?.closest(".tool")?.querySelector(".tname");
-		if (run) return run.dataset.doing || "Working";
+		if (run) return run.dataset.doing || tr("Working");
 		const blocks = S.view?.stream?.blocks.filter(Boolean) ?? [];
-		return blocks.at(-1)?.t === "text" ? "Writing" : "Thinking";
+		return blocks.at(-1)?.t === "text" ? tr("Writing") : tr("Thinking");
 	}
 	function refreshWork() {
 		const info = S.agents.get(S.current);
@@ -555,7 +556,7 @@
 					node.appendChild(e);
 				} else if (item.stop === "aborted") {
 					const e = el("div", "err-line stopped");
-					e.append(icon("stop", "md"), el("span", "", "Stopped"));
+					e.append(icon("stop", "md"), el("span", "", tr("Stopped")));
 					node.appendChild(e);
 				}
 				break;
@@ -569,9 +570,9 @@
 				const ti = el("span", "ticon");
 				ti.appendChild(icon("terminal"));
 				const st = el("span", "tstate");
-				s.append(ti, el("span", "tname", "You ran"), el("span", "ttitle", item.command), st);
+				s.append(ti, el("span", "tname", tr("You ran")), el("span", "ttitle", item.command), st);
 				const body = el("div", "tbody");
-				body.appendChild(scrollBox(el("pre", "out", item.output || "(no output)")));
+				body.appendChild(scrollBox(el("pre", "out", item.output || tr("(no output)"))));
 				node.append(s, body);
 				setState(node, item.exitCode === 0 ? "ok" : "err");
 				break;
@@ -583,7 +584,7 @@
 				node = el("details", "msg summary");
 				{
 					const s = el("summary", "tag");
-					s.append(icon("compact", "sm"), item.kind === "compaction" ? "Context compacted · summary" : "Branch summary");
+					s.append(icon("compact", "sm"), item.kind === "compaction" ? tr("Context compacted · summary") : tr("Branch summary"));
 					node.append(s, mdNode(item.text));
 				}
 				break;
@@ -631,7 +632,7 @@
 	function thinkingNode(text, live) {
 		const d = el("details", "thinking");
 		const s = el("summary");
-		s.append(icon("sparkle", "sm"), el("span", "", live ? "Thinking" : "Thought"), icon("chev-right", "chev"));
+		s.append(icon("sparkle", "sm"), el("span", "", live ? tr("Thinking") : tr("Thought")), icon("chev-right", "chev"));
 		d.appendChild(s);
 		if (text) d.appendChild(mdNode(text));
 		return d;
@@ -649,7 +650,7 @@
 	];
 	function toolLook(name) {
 		const hit = TOOL_LOOK.find(([re]) => re.test(name || ""));
-		if (hit) return { icon: hit[1], verb: hit[2], doing: hit[3], known: true };
+		if (hit) return { icon: hit[1], verb: tr(hit[2]), doing: tr(hit[3]), known: true };
 		const pretty = String(name || "tool").replace(/^mcp__/, "").replace(/[_-]+/g, " ");
 		const verb = pretty.charAt(0).toUpperCase() + pretty.slice(1);
 		return { icon: "bolt", verb, doing: verb, known: false };
@@ -660,7 +661,7 @@
 		st.replaceChildren();
 		if (state === "ok") st.appendChild(icon("check"));
 		else if (state === "err") st.appendChild(icon("x"));
-		st.setAttribute("aria-label", state === "run" ? "running" : state === "err" ? "failed" : state === "ok" ? "done" : "");
+		st.setAttribute("aria-label", state === "run" ? tr("running") : state === "err" ? tr("failed") : state === "ok" ? tr("done") : "");
 		card.classList.toggle("running", state === "run");
 		card.classList.toggle("err", state === "err");
 		const name = card.querySelector(".tname");
@@ -690,7 +691,7 @@
 		// Known tools say everything in their title; show raw arguments only for the others.
 		if (args && !(look.known && title)) {
 			const more = el("details", "args");
-			more.append(el("summary", "", "Arguments"), scrollBox(el("pre", "out", args)));
+			more.append(el("summary", "", tr("Arguments")), scrollBox(el("pre", "out", args)));
 			body.appendChild(more);
 		}
 		d.append(s, body);
@@ -703,13 +704,13 @@
 		body.querySelectorAll(".result").forEach((n) => n.remove());
 		const box = el("div", "result");
 		if (item.diff) {
-			box.appendChild(el("div", "label", "Changes"));
+			box.appendChild(el("div", "label", tr("Changes")));
 			box.appendChild(diffNode(item.diff));
 		} else {
-			box.appendChild(el("div", "label", item.isError ? "Error" : "Output"));
-			box.appendChild(scrollBox(el("pre", "out", item.output || "(no output)")));
+			box.appendChild(el("div", "label", item.isError ? tr("Error") : tr("Output")));
+			box.appendChild(scrollBox(el("pre", "out", item.output || tr("(no output)"))));
 			if (item.truncated) {
-				const more = el("button", "more", "Show full output");
+				const more = el("button", "more", tr("Show full output"));
 				more.onclick = async () => {
 					more.disabled = true;
 					try {
@@ -751,7 +752,7 @@
 		for (let i = 0; i < count; i++) {
 			const b = el("button", "thumb");
 			b.type = "button";
-			b.setAttribute("aria-label", count === 1 ? "Open image" : `Open image ${i + 1} of ${count}`);
+			b.setAttribute("aria-label", count === 1 ? tr("Open image") : tr("Open image {i} of {n}", { i: i + 1, n: count }));
 			b.appendChild(icon("image"));
 			loadImage({ ...at, i }).then(
 				(src) => {
@@ -798,19 +799,19 @@
 			};
 			return b;
 		};
-		const close = btn("close", "x", "Close", closeViewer);
-		const prev = btn("prev", "chev-right", "Previous image", () => show(index - 1));
-		const next = btn("next", "chev-right", "Next image", () => show(index + 1));
+		const close = btn("close", "x", tr("Close"), closeViewer);
+		const prev = btn("prev", "chev-right", tr("Previous image"), () => show(index - 1));
+		const next = btn("next", "chev-right", tr("Next image"), () => show(index + 1));
 		const counter = el("div", "viewer-count");
 		counter.setAttribute("aria-hidden", "true");
 		const show = (i) => {
 			index = (i + count) % count;
 			v.classList.remove("zoomed");
-			v.setAttribute("aria-label", count === 1 ? "Image" : `Image ${index + 1} of ${count}`);
-			counter.textContent = `${index + 1} of ${count}`;
+			v.setAttribute("aria-label", count === 1 ? tr("Image") : tr("Image {i} of {n}", { i: index + 1, n: count }));
+			counter.textContent = tr("{i} of {n}", { i: index + 1, n: count });
 			img.removeAttribute("src");
 			img.hidden = true;
-			note.textContent = "Loading image…";
+			note.textContent = tr("Loading image…");
 			note.hidden = false;
 			const want = index;
 			loadImage({ ...ref, i: index }).then(
@@ -821,7 +822,7 @@
 					note.hidden = true;
 				},
 				(e) => {
-					if (want === index) note.textContent = `Couldn't load the image: ${e.message}`;
+					if (want === index) note.textContent = tr("Couldn't load the image: {error}", { error: e.message });
 				},
 			);
 		};
@@ -1083,7 +1084,7 @@
 	/** A session's name, with its computer when there are several ("api on hetzner-box"). */
 	function sessionLabel(agent) {
 		const name = agentName(agent);
-		return several() && machineName(agent) ? `${name} on ${machineName(agent)}` : name;
+		return several() && machineName(agent) ? tr("{name} on {machine}", { name, machine: machineName(agent) }) : name;
 	}
 
 	/**
@@ -1119,17 +1120,17 @@
 	/** One line under the session name that says what is going on. */
 	function statusLine(info) {
 		const ask = [...(S.prompts.get(info.agent)?.values() || [])][0];
-		if (ask) return { text: `Needs you · ${ask.title}`, cls: "waiting" };
-		if (info.status === "waiting") return { text: "Needs you in the terminal", cls: "waiting" };
-		if (info.status === "working") return { text: `Working${info.since ? ` · ${elapsed(Date.now() - info.since)}` : ""}${info.queued ? " · message queued" : ""}`, cls: "working" };
+		if (ask) return { text: tr("Needs you · {title}", { title: ask.title }), cls: "waiting" };
+		if (info.status === "waiting") return { text: tr("Needs you in the terminal"), cls: "waiting" };
+		if (info.status === "working") return { text: `${tr("Working")}${info.since ? ` · ${elapsed(Date.now() - info.since)}` : ""}${info.queued ? ` · ${tr("message queued")}` : ""}`, cls: "working" };
 		const bits = [info.task || shortPath(info.cwd)];
-		if (info.context?.percent != null) bits.push(`${Math.round(info.context.percent)}% context`);
+		if (info.context?.percent != null) bits.push(tr("{n}% context", { n: Math.round(info.context.percent) }));
 		if (info.cost) bits.push(`$${info.cost.toFixed(2)}`);
 		return { text: bits.filter(Boolean).join(" · "), cls: "" };
 	}
 
 	function workLine(info) {
-		return `${phase()}${info.since ? ` · ${elapsed(Date.now() - info.since)}` : ""}${info.queued ? " · message queued" : ""}`;
+		return `${phase()}${info.since ? ` · ${elapsed(Date.now() - info.since)}` : ""}${info.queued ? ` · ${tr("message queued")}` : ""}`;
 	}
 
 	function setHeader() {
@@ -1139,13 +1140,13 @@
 		const others = sortedAgents().filter((a) => a.agent !== S.current && urgency(a) === 0).length;
 		$("top").classList.toggle("bare", !S.device);
 		if (!info) {
-			$("sessionName").textContent = S.device ? (S.agents.size ? "Choose a session" : "pi mobile") : "pi mobile";
+			$("sessionName").textContent = S.device ? (S.agents.size ? tr("Choose a session") : "pi mobile") : "pi mobile";
 			const sub = $("sessionSub");
-			sub.textContent = several() ? `${fleet.machines.length} computers` : S.device?.host || "";
+			sub.textContent = several() ? tr("{n} computers", { n: fleet.machines.length }) : S.device?.host || "";
 			sub.className = "session-sub";
 			dot.className = "dot gone";
 			$("modelBtn").hidden = true;
-			$("sessionBtn").setAttribute("aria-label", "Sessions");
+			$("sessionBtn").setAttribute("aria-label", tr("Sessions"));
 			updateTitle();
 			return;
 		}
@@ -1157,11 +1158,18 @@
 		sub.textContent = where ? `${where} · ${line.text}` : line.text;
 		sub.className = `session-sub ${line.cls}`;
 		dot.className = `dot ${line.cls === "waiting" ? "waiting" : info.status}`;
-		$("sessionBtn").setAttribute("aria-label", `${info.name}${where ? ` on ${where}` : ""}: ${line.text}. Switch session${others ? `, ${others} other${others > 1 ? "s" : ""} need you` : ""}`);
+		$("sessionBtn").setAttribute(
+			"aria-label",
+			tr("{who}: {status}. Switch session{need}", {
+				who: where ? tr("{name} on {machine}", { name: info.name, machine: where }) : info.name,
+				status: line.text,
+				need: others ? (others > 1 ? tr(", {n} others need you", { n: others }) : tr(", 1 other needs you")) : "",
+			}),
+		);
 		const mb = $("modelBtn");
 		if (info.model) {
 			mb.innerHTML = `<span class="label">${esc(shortModel(info.model.name || info.model.id))}</span>`;
-			mb.setAttribute("aria-label", `Model ${info.model.name || info.model.id}${info.thinking ? `, thinking ${info.thinking}` : ""}. Change`);
+			mb.setAttribute("aria-label", tr("Model {model}{thinking}. Change", { model: info.model.name || info.model.id, thinking: info.thinking ? tr(", thinking {level}", { level: info.thinking }) : "" }));
 			mb.hidden = false;
 		} else mb.hidden = true;
 		updateComposer();
@@ -1194,7 +1202,7 @@
 		const box = $("prompts");
 		const map = S.prompts.get(S.current) || new Map();
 		if (endEv && answered.has(endEv.id)) answered.delete(endEv.id);
-		else if (endEv && endEv.by === "terminal") toast("Answered in the terminal");
+		else if (endEv && endEv.by === "terminal") toast(tr("Answered in the terminal"));
 		box.replaceChildren(...[...map.values()].map(promptNode));
 		updateComposer();
 	}
@@ -1202,9 +1210,9 @@
 	function promptNode(p) {
 		const card = el("div", "prompt");
 		card.setAttribute("role", "group");
-		card.setAttribute("aria-label", `pi asks: ${p.title}`);
+		card.setAttribute("aria-label", tr("pi asks: {title}", { title: p.title }));
 		const eyebrow = el("div", "eyebrow");
-		eyebrow.append(icon("alert"), "pi asks");
+		eyebrow.append(icon("alert"), tr("pi asks"));
 		card.append(eyebrow, el("div", "ptitle", p.title));
 		if (p.message) card.appendChild(el("div", "pmsg", p.message));
 		const answer = async (value, btn) => {
@@ -1222,8 +1230,8 @@
 		if (p.kind === "confirm") {
 			// Irreversible actions are red and say so, the same as in voice mode.
 			const destructive = !!window.PiVoiceCore?.isDestructive?.(p);
-			const yes = el("button", destructive ? "danger" : "primary", destructive ? "Yes, do it" : "Yes");
-			const no = el("button", "", "No");
+			const yes = el("button", destructive ? "danger" : "primary", destructive ? tr("Yes, do it") : tr("Yes"));
+			const no = el("button", "", tr("No"));
 			yes.onclick = () => answer(true);
 			no.onclick = () => answer(false);
 			act.append(yes, no);
@@ -1235,7 +1243,7 @@
 				b.onclick = () => answer(o);
 				act.appendChild(b);
 			}
-			const cancel = el("button", "ghost", "Cancel");
+			const cancel = el("button", "ghost", tr("Cancel"));
 			cancel.onclick = () => answer(undefined);
 			act.appendChild(cancel);
 		} else {
@@ -1243,8 +1251,8 @@
 			input.placeholder = p.placeholder || "";
 			input.enterKeyHint = "send";
 			card.appendChild(input);
-			const ok = el("button", "primary", "Submit");
-			const cancel = el("button", "", "Cancel");
+			const ok = el("button", "primary", tr("Submit"));
+			const cancel = el("button", "", tr("Cancel"));
 			ok.onclick = () => answer(input.value);
 			cancel.onclick = () => answer(undefined);
 			input.onkeydown = (e) => {
@@ -1254,12 +1262,12 @@
 		}
 		card.appendChild(act);
 		const foot = el("div", "pfoot");
-		const footText = el("span", "", "Also open in the terminal · first answer wins");
+		const footText = el("span", "", tr("Also open in the terminal · first answer wins"));
 		foot.append(icon("terminal"), footText);
 		if (p.expiresAt) {
 			const tick = () => {
 				const s = Math.max(0, Math.round((p.expiresAt - Date.now()) / 1000));
-				footText.textContent = `First answer wins · times out in ${s}s`;
+				footText.textContent = tr("First answer wins · times out in {s}s", { s });
 				if (s > 0 && card.isConnected) setTimeout(tick, 1000);
 			};
 			tick();
@@ -1276,7 +1284,7 @@
 		if (working) $("workText").textContent = workLine(info);
 		$("modeSteer").setAttribute("aria-pressed", String(S.mode !== "followUp"));
 		$("modeQueue").setAttribute("aria-pressed", String(S.mode === "followUp"));
-		$("input").placeholder = working ? (S.mode === "followUp" ? "Queue a follow-up" : "Steer pi") : info ? `Message ${info.name}` : "Message pi";
+		$("input").placeholder = working ? (S.mode === "followUp" ? tr("Queue a follow-up") : tr("Steer pi")) : info ? tr("Message {name}", { name: info.name }) : tr("Message pi");
 		$("sendBtn").disabled = !S.online;
 		updateSend();
 	}
@@ -1333,9 +1341,9 @@
 		$("sendBtn").disabled = true;
 		try {
 			const r = await call("send", { text, images, mode: S.mode }, agent);
-			if (r.delivered === "steer") toast("Steering message queued");
-			else if (r.delivered === "followUp") toast("Follow-up queued");
-			else if (r.delivered === "command") toast("Command sent");
+			if (r.delivered === "steer") toast(tr("Steering message queued"));
+			else if (r.delivered === "followUp") toast(tr("Follow-up queued"));
+			else if (r.delivered === "command") toast(tr("Command sent"));
 			return true;
 		} catch (e) {
 			toast(e.message, "error");
@@ -1352,7 +1360,7 @@
 			try {
 				S.attachments.push(await downscale(f));
 			} catch (e) {
-				toast(`Could not read image: ${e.message}`, "error");
+				toast(tr("Could not read image: {error}", { error: e.message }), "error");
 			}
 		}
 		renderAttachments();
@@ -1384,13 +1392,13 @@
 				const w = el("div", "att");
 				const img = el("img");
 				img.src = a.preview;
-				img.alt = S.attachments.length > 1 ? `Attached image ${i + 1}` : "Attached image";
+				img.alt = S.attachments.length > 1 ? tr("Attached image {i}", { i: i + 1 }) : tr("Attached image");
 				// A 44 px target over the thumbnail's corner; the visible 24 px disc sits in its top-right.
 				const x = el("button", "att-x");
 				const face = el("span", "att-x-face");
 				face.appendChild(icon("x"));
 				x.appendChild(face);
-				x.setAttribute("aria-label", S.attachments.length > 1 ? `Remove image ${i + 1}` : "Remove image");
+				x.setAttribute("aria-label", S.attachments.length > 1 ? tr("Remove image {i}", { i: i + 1 }) : tr("Remove image"));
 				x.onclick = () => {
 					S.attachments.splice(i, 1);
 					renderAttachments();
@@ -1460,7 +1468,7 @@
 			g.appendChild(t);
 			if (head.subtitle) g.appendChild(el("div", "subtitle", head.subtitle));
 			const x = el("button", "sheet-close");
-			x.setAttribute("aria-label", "Close");
+			x.setAttribute("aria-label", tr("Close"));
 			x.appendChild(icon("x"));
 			x.onclick = closeSheet;
 			h.append(g, x);
@@ -1515,11 +1523,11 @@
 		const all = sortedAgents();
 		openSheet(
 			(body) => {
-				if (!all.length) body.appendChild(el("p", "note", "No pi session is shared right now. Run /remote in pi on your computer."));
+				if (!all.length) body.appendChild(el("p", "note", tr("No pi session is shared right now. Run /remote in pi on your computer.")));
 				const buckets = [
-					["Needs you", all.filter((a) => urgency(a) === 0)],
-					["Working", all.filter((a) => urgency(a) === 1)],
-					["Idle", all.filter((a) => urgency(a) === 2)],
+					[tr("Needs you"), all.filter((a) => urgency(a) === 0)],
+					[tr("Working"), all.filter((a) => urgency(a) === 1)],
+					[tr("Idle"), all.filter((a) => urgency(a) === 2)],
 				];
 				for (const [name, list] of buckets) {
 					if (!list.length) continue;
@@ -1529,7 +1537,7 @@
 						const asks = [...(S.prompts.get(a.agent)?.values() || [])];
 						let extra;
 						if (asks.length) extra = el("span", "ask", asks[0].title);
-						else if (a.status === "waiting") extra = el("span", "ask", "Waiting for input in the terminal");
+						else if (a.status === "waiting") extra = el("span", "ask", tr("Waiting for input in the terminal"));
 						else if (a.last) extra = el("span", "last", a.last);
 						const trail = el("span", "");
 						trail.style.display = "contents";
@@ -1543,7 +1551,7 @@
 							extra,
 							trail,
 							cls: a.agent === S.current ? "current" : "",
-							label: `${a.name}${where ? ` on ${where}` : ""}, ${name.toLowerCase()}${a.task ? `: ${a.task}` : ""}`,
+							label: `${where ? tr("{name} on {machine}", { name: a.name, machine: where }) : a.name}, ${name.toLowerCase()}${a.task ? `: ${a.task}` : ""}`,
 							onclick: () => {
 								closeSheet();
 								openAgent(a.agent);
@@ -1554,18 +1562,18 @@
 				// A computer that can't be reached says so, instead of its sessions silently vanishing.
 				const away = fleet.machines.filter((m) => m.state !== "online" && m.state !== "connecting");
 				if (away.length) {
-					section(body, "Offline", away.length);
+					section(body, tr("Offline"), away.length);
 					const g = group(body);
-					for (const m of away) row(g, { lead: el("span", "lead dot gone"), title: m.name || "Computer", sub: awayLine(m), cls: "plain", onclick: () => machineSheet(m.id) });
+					for (const m of away) row(g, { lead: el("span", "lead dot gone"), title: m.name || tr("Computer"), sub: awayLine(m), cls: "plain", onclick: () => machineSheet(m.id) });
 				}
 				if (all.some((a) => a.herdr)) {
 					const add = el("button", "btn");
-					add.append(icon("plus"), "New session");
+					add.append(icon("plus"), tr("New session"));
 					add.onclick = () => newSessionSheet();
 					body.appendChild(add);
 				}
 			},
-			{ title: "Sessions", subtitle: several() ? `On ${fleet.machines.length} computers` : `On ${S.device?.host || "your computer"}` },
+			{ title: tr("Sessions"), subtitle: several() ? tr("On {n} computers", { n: fleet.machines.length }) : tr("On {host}", { host: S.device?.host || tr("your computer") }) },
 		);
 	}
 
@@ -1577,16 +1585,16 @@
 		const target = machineId && starters.has(machineId) ? machineId : starters.has(fleet.machineOf(S.current)) ? fleet.machineOf(S.current) : [...starters.keys()][0];
 		const starter = starters.get(target);
 		const folders = [...new Set([...S.agents.values()].filter((a) => fleet.machineOf(a.agent) === target).map((a) => a.cwd))].sort();
-		const where = fleet.get(target)?.name || "your computer";
+		const where = fleet.get(target)?.name || tr("your computer");
 		openSheet((body) => {
 			if (starters.size > 1) {
-				section(body, "Computer");
+				section(body, tr("Computer"));
 				const seg = el("div", "seg wide");
 				seg.setAttribute("role", "group");
-				seg.setAttribute("aria-label", "Computer");
+				seg.setAttribute("aria-label", tr("Computer"));
 				if (starters.size > 2) seg.style.gridTemplateColumns = `repeat(${starters.size}, 1fr)`;
 				for (const id of starters.keys()) {
-					const b = el("button", "", fleet.get(id)?.name || "Computer");
+					const b = el("button", "", fleet.get(id)?.name || tr("Computer"));
 					b.setAttribute("aria-pressed", String(id === target));
 					b.onclick = () => id !== target && newSessionSheet(id);
 					seg.appendChild(b);
@@ -1606,8 +1614,8 @@
 			}
 			const prompt = el("textarea");
 			prompt.rows = 3;
-			prompt.placeholder = "What should pi do? (optional)";
-			const go = el("button", "btn primary", "Start pi");
+			prompt.placeholder = tr("What should pi do? (optional)");
+			const go = el("button", "btn primary", tr("Start pi"));
 			go.onclick = async () => {
 				go.disabled = true;
 				const spawnId = Math.random().toString(36).slice(2, 10);
@@ -1615,7 +1623,7 @@
 					S.spawning = spawnId;
 					await call("spawn", { cwd: folder.value.trim(), prompt: prompt.value, spawnId }, starter);
 					closeSheet();
-					toast("Starting pi…");
+					toast(tr("Starting pi…"));
 				} catch (e) {
 					S.spawning = null;
 					go.disabled = false;
@@ -1623,15 +1631,15 @@
 				}
 			};
 			const f1 = el("label", "field");
-			f1.append(el("span", "", "Folder"), folder, list);
+			f1.append(el("span", "", tr("Folder")), folder, list);
 			const f2 = el("label", "field");
-			f2.append(el("span", "", "First prompt"), prompt);
+			f2.append(el("span", "", tr("First prompt")), prompt);
 			body.append(f1, f2, go);
-		}, { title: "New session", subtitle: `Starts pi in a new herdr tab on ${where}` });
+		}, { title: tr("New session"), subtitle: tr("Starts pi in a new herdr tab on {where}", { where }) });
 	}
 
 	async function modelSheet() {
-		openSheet((body) => body.appendChild(el("p", "note", "Loading models…")), { title: "Model" });
+		openSheet((body) => body.appendChild(el("p", "note", tr("Loading models…"))), { title: tr("Model") });
 		try {
 			S.models = await call("models");
 		} catch (e) {
@@ -1642,10 +1650,10 @@
 		const info = S.agents.get(S.current);
 		openSheet((body) => {
 			if (info?.model?.reasoning) {
-				section(body, "Thinking");
+				section(body, tr("Thinking"));
 				const lv = el("div", "chips");
 				lv.setAttribute("role", "group");
-				lv.setAttribute("aria-label", "Thinking level");
+				lv.setAttribute("aria-label", tr("Thinking level"));
 				for (const l of m.levels) {
 					const b = el("button", "", l);
 					b.setAttribute("aria-pressed", String(l === m.thinking));
@@ -1661,7 +1669,7 @@
 				}
 				body.appendChild(lv);
 			}
-			section(body, "Model");
+			section(body, tr("Model"));
 			const g = group(body);
 			for (const x of m.models) {
 				const active = m.current && x.provider === m.current.provider && x.id === m.current.id;
@@ -1670,19 +1678,19 @@
 					sub: `${x.provider} · ${x.id}`,
 					cls: `plain${active ? " current" : ""}`,
 					trail: active ? icon("check", "check") : undefined,
-					label: `${x.name}${active ? ", current" : ""}`,
+					label: `${x.name}${active ? tr(", current") : ""}`,
 					onclick: async () => {
 						try {
 							await call("setModel", { provider: x.provider, id: x.id });
 							closeSheet();
-							toast(`Switched to ${x.name}`);
+							toast(tr("Switched to {name}", { name: x.name }));
 						} catch (e) {
 							toast(e.message, "error");
 						}
 					},
 				});
 			}
-		}, { title: "Model", subtitle: info?.name });
+		}, { title: tr("Model"), subtitle: info?.name });
 	}
 
 	function menuSheet() {
@@ -1690,24 +1698,24 @@
 			let g;
 			const add = (label, fn, cls = "", lead = "chev-right", sub) => row(g, { lead, title: label, sub, cls, onclick: fn });
 			const info = S.agents.get(S.current);
-			section(body, info ? `Session · ${info.name}` : "Session");
+			section(body, info ? tr("Session · {name}", { name: info.name }) : tr("Session"));
 			g = group(body);
 			// Narrow screens hide the header's model chip (app.css), so the menu offers it.
 			if (info?.model && getComputedStyle($("modelBtn")).display === "none")
-				add("Model", modelSheet, "", "chip", `${shortModel(info.model.name || info.model.id)}${info.thinking ? ` · thinking ${info.thinking}` : ""}`);
+				add(tr("Model"), modelSheet, "", "chip", `${shortModel(info.model.name || info.model.id)}${info.thinking ? ` · ${tr("thinking {level}", { level: info.thinking })}` : ""}`);
 			if (S.current) {
-				add("Compact context", async () => {
+				add(tr("Compact context"), async () => {
 					closeSheet();
 					try {
 						await call("compact", {});
-						toast("Compacting…");
+						toast(tr("Compacting…"));
 					} catch (e) {
 						toast(e.message, "error");
 					}
-				}, "", "compact", "Summarise older messages to free context");
+				}, "", "compact", tr("Summarise older messages to free context"));
 			}
 			add(
-				"Reload transcript",
+				tr("Reload transcript"),
 				() => {
 					closeSheet();
 					loadCurrent();
@@ -1715,83 +1723,114 @@
 				"",
 				"refresh",
 			);
-			section(body, "Notifications");
+			section(body, tr("Notifications"));
 			if (window.PiNative) {
 				// The app's own notifications (APNs, native/ios/BRIDGE.md `push.*`): the permission is asked on this tap.
 				g = group(body);
 				const n = S.push.native;
-				if (n?.available === false) body.appendChild(el("p", "note", "Notifications aren't available in this build of the app."));
-				else if (n?.on) add("Turn off notifications", () => setNativePush(false), "", "bell", "You get one when pi finishes or asks");
-				else add("Turn on notifications", () => setNativePush(true), "", "bell", n?.permission === "denied" ? `Allow them for pi in ${window.PiNative.platform === "android" ? "Android" : "iPhone"} Settings first` : "When pi finishes or needs you");
+				if (n?.available === false) body.appendChild(el("p", "note", tr("Notifications aren't available in this build of the app.")));
+				else if (n?.on) add(tr("Turn off notifications"), () => setNativePush(false), "", "bell", tr("You get one when pi finishes or asks"));
+				else add(tr("Turn on notifications"), () => setNativePush(true), "", "bell", n?.permission === "denied" ? tr("Allow them for pi in {platform} Settings first", { platform: window.PiNative.platform === "android" ? "Android" : "iPhone" }) : tr("When pi finishes or needs you"));
 				if (n?.available !== false) notifyLines(body);
 			} else if (!pushSupported()) {
-				body.appendChild(el("p", "note", "On iPhone, add this page to your Home Screen (Share → Add to Home Screen) and open pi from there to get lock-screen notifications."));
+				body.appendChild(el("p", "note", tr("On iPhone, add this page to your Home Screen (Share → Add to Home Screen) and open pi from there to get lock-screen notifications.")));
 			} else {
 				g = group(body);
-				if (pushOn()) add("Turn off notifications", () => setPush(false), "", "bell", "You get one when pi finishes or asks");
-				else add("Turn on notifications", () => setPush(true), "", "bell", Notification.permission === "denied" ? "Allow notifications for this site in the browser settings first" : "When pi finishes or needs you");
+				if (pushOn()) add(tr("Turn off notifications"), () => setPush(false), "", "bell", tr("You get one when pi finishes or asks"));
+				else add(tr("Turn on notifications"), () => setPush(true), "", "bell", Notification.permission === "denied" ? tr("Allow notifications for this site in the browser settings first") : tr("When pi finishes or needs you"));
 				notifyLines(body);
 			}
 			if (window.PiVoice?.sheet) {
-				section(body, "Voice");
+				section(body, tr("Voice"));
 				g = group(body);
 				// The same as the composer's voice button, for when there's text in the composer.
 				if (S.agents.get(S.current))
 					add(
-						"Voice mode",
+						tr("Voice mode"),
 						() => {
 							closeSheet();
 							$("voiceBtn").click();
 						},
 						"",
 						"wave",
-						`Talk with ${agentName(S.current)} hands-free`,
+						tr("Talk with {name} hands-free", { name: agentName(S.current) }),
 					);
 				const p = window.PiVoice.persona();
-				add(p ? p.name : "Choose a voice", window.PiVoice.sheet, "", "voice", p ? `${p.blurb} · how pi sounds in voice mode` : "How pi sounds in voice mode");
+				add(p ? p.name : tr("Choose a voice"), window.PiVoice.sheet, "", "voice", p ? `${p.blurb} · ${tr("how pi sounds in voice mode")}` : tr("How pi sounds in voice mode"));
 			}
 			if (window.PiNative?.consent) {
 				// The app's OK to send your voice (native/ios/BRIDGE.md `consent.*`); the app asks for it itself.
 				if (!window.PiVoice?.sheet) {
-					section(body, "Voice");
+					section(body, tr("Voice"));
 					g = group(body);
 				}
-				if (S.consent) add("Stop sharing my voice", revokeConsent, "danger", "voice", "Voice goes to OpenAI and your computer; pi asks again next time");
-				else body.appendChild(el("p", "note", "pi asks before voice mode or dictation sends your voice anywhere."));
+				if (S.consent) add(tr("Stop sharing my voice"), revokeConsent, "danger", "voice", tr("Voice goes to OpenAI and your computer; pi asks again next time"));
+				else body.appendChild(el("p", "note", tr("pi asks before voice mode or dictation sends your voice anywhere.")));
 			}
-			section(body, "Computers");
+			section(body, tr("Computers"));
 			g = group(body);
 			for (const m of fleet.machines) {
 				const on = m.state === "online";
 				row(g, {
 					lead: el("span", `lead dot ${on ? "idle" : "gone"}`),
-					title: m.name || "Computer",
-					sub: on ? `${fleet.agentsOf(m.id).length} session${fleet.agentsOf(m.id).length === 1 ? "" : "s"}` : awayLine(m),
+					title: m.name || tr("Computer"),
+					sub: on ? (fleet.agentsOf(m.id).length === 1 ? tr("1 session") : tr("{n} sessions", { n: fleet.agentsOf(m.id).length })) : awayLine(m),
 					trail: icon("chev-right", "trail"),
 					onclick: () => machineSheet(m.id),
 				});
 			}
-			add("Add a computer", addComputerSheet, "", "plus", "Or run /remote add <host> in pi");
-			section(body, several() ? `Devices on ${S.device?.host || "this computer"}` : "Devices");
+			add(tr("Add a computer"), addComputerSheet, "", "plus", tr("Or run /remote add <host> in pi"));
+			section(body, several() ? tr("Devices on {host}", { host: S.device?.host || tr("this computer") }) : tr("Devices"));
 			g = group(body);
-			add("Pair another device", pairSheet, "", "qr");
-			add("Manage devices", devicesSheet, "", "phone");
+			add(tr("Pair another device"), pairSheet, "", "qr");
+			add(tr("Manage devices"), devicesSheet, "", "phone");
 			add(
-				"Unpair this device",
+				tr("Unpair this device"),
 				async () => {
 					closeSheet();
 					try {
 						await rpc("revoke", { ids: [S.device.d] });
 					} catch {}
-					unpaired("You unpaired this device");
+					unpaired(tr("You unpaired this device"));
 				},
 				"danger",
 				"logout",
 			);
+			if (window.PiI18n) {
+				section(body, tr("Language"));
+				g = group(body);
+				add(languageLabel(window.PiI18n.pref()), languageSheet, "", "globe");
+			}
 			const note = el("p", "note");
-			note.append(icon("lock"), "End-to-end encrypted");
+			note.append(icon("lock"), tr("End-to-end encrypted"));
 			body.appendChild(note);
-		}, { title: "pi mobile", subtitle: several() ? `Connected to ${fleet.machines.length} computers` : `Connected to ${S.device?.host || "your computer"}` });
+		}, { title: "pi mobile", subtitle: several() ? tr("Connected to {n} computers", { n: fleet.machines.length }) : tr("Connected to {host}", { host: S.device?.host || tr("your computer") }) });
+	}
+
+	/** A language choice as the menu shows it; each language is named in itself. */
+	function languageLabel(p) {
+		if (p === "zh") return "中文";
+		if (p === "en") return "English";
+		return tr("Automatic ({lang})", { lang: window.PiI18n.lang === "zh" ? "中文" : "English" });
+	}
+
+	/** The interface language: automatic (from the phone's settings), Chinese or English. Reloads on change. */
+	function languageSheet() {
+		const now = window.PiI18n.pref();
+		openSheet(
+			(body) => {
+				const g = group(body);
+				for (const p of ["auto", "zh", "en"])
+					row(g, {
+						title: languageLabel(p),
+						sub: p === "auto" ? tr("Follows this phone's language") : undefined,
+						cls: `plain${p === now ? " current" : ""}`,
+						trail: p === now ? icon("check", "check") : undefined,
+						onclick: () => (p === now ? closeSheet() : window.PiI18n.setLang(p)),
+					});
+			},
+			{ title: tr("Language") },
+		);
 	}
 
 	async function pairSheet() {
@@ -1800,25 +1839,25 @@
 			// Only a secure link: the page's own origin first, else any https one, never a plain-http loopback fallback.
 			const secure = r.links.filter((l) => l.url.startsWith("https://"));
 			const here = secure.find((l) => l.url.startsWith(`${location.origin}/`)) || secure[0];
-			if (!here) return toast("This computer has no secure address yet. Run /remote on it to set one up.", "error");
+			if (!here) return toast(tr("This computer has no secure address yet. Run /remote on it to set one up."), "error");
 			openSheet(
 				(body) => {
-					body.appendChild(el("p", "note", "Single use, valid for 10 minutes. Whoever opens it gets full control of your pi sessions, so send it only to your own devices."));
+					body.appendChild(el("p", "note", tr("Single use, valid for 10 minutes. Whoever opens it gets full control of your pi sessions, so send it only to your own devices.")));
 					body.appendChild(el("div", "linkbox", here.url));
 					if (navigator.share) {
 						const b = el("button", "btn primary");
-						b.append(icon("share"), "Share link");
+						b.append(icon("share"), tr("Share link"));
 						b.onclick = () => navigator.share({ url: here.url }).catch(() => {});
 						body.appendChild(b);
 					}
 					if (navigator.clipboard) {
 						const b = el("button", "btn");
-						b.append(icon("copy"), "Copy link");
-						b.onclick = () => navigator.clipboard.writeText(here.url).then(() => toast("Link copied"));
+						b.append(icon("copy"), tr("Copy link"));
+						b.onclick = () => navigator.clipboard.writeText(here.url).then(() => toast(tr("Link copied")));
 						body.appendChild(b);
 					}
 				},
-				{ title: "Pair another device" },
+				{ title: tr("Pair another device") },
 			);
 		} catch (e) {
 			toast(e.message, "error");
@@ -1832,25 +1871,25 @@
 				(body) => {
 					const g = group(body);
 					for (const d of list) {
-						const seen = d.lastSeenAt ? new Date(d.lastSeenAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "never";
-						const trail = el("span", "ask", "Revoke");
+						const seen = d.lastSeenAt ? new Date(d.lastSeenAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : tr("never");
+						const trail = el("span", "ask", tr("Revoke"));
 						trail.style.color = "var(--err)";
 						row(g, {
 							lead: "phone",
-							title: `${d.name}${d.id === S.device.d ? " · this device" : ""}`,
-							sub: `Last seen ${seen}`,
+							title: `${d.name}${d.id === S.device.d ? ` · ${tr("this device")}` : ""}`,
+							sub: tr("Last seen {when}", { when: seen }),
 							trail,
-							label: `Revoke ${d.name}`,
+							label: tr("Revoke {name}", { name: d.name }),
 							onclick: async () => {
-								if (!confirm(`Revoke ${d.name}? It loses access immediately.`)) return;
+								if (!confirm(tr("Revoke {name}? It loses access immediately.", { name: d.name }))) return;
 								await rpc("revoke", { ids: [d.id] }).catch((e) => toast(e.message, "error"));
-								if (d.id === S.device.d) return unpaired("You revoked this device");
+								if (d.id === S.device.d) return unpaired(tr("You revoked this device"));
 								devicesSheet();
 							},
 						});
 					}
 				},
-				{ title: "Devices", subtitle: `Paired with ${S.device?.host || "your computer"}` },
+				{ title: tr("Devices"), subtitle: tr("Paired with {host}", { host: S.device?.host || tr("your computer") }) },
 			);
 		} catch (e) {
 			toast(e.message, "error");
@@ -1881,13 +1920,13 @@
 		}
 		const first = others[0];
 		const ask = [...(S.prompts.get(first.agent)?.values() || [])][0];
-		const what = ask ? `asks: ${ask.title}` : "needs you";
+		const what = ask ? tr("asks: {title}", { title: ask.title }) : tr("needs you");
 		const text = el("span", "grow");
 		const b = el("b", "", first.name);
 		const where = several() ? `${machineName(first.agent)} · ` : "";
-		text.append(others.length > 1 ? `${others.length} sessions need you · ` : where, b, ` ${what}`);
+		text.append(others.length > 1 ? `${tr("{n} sessions need you", { n: others.length })} · ` : where, b, ` ${what}`);
 		pill.replaceChildren(icon("alert"), text, icon("chev-right", "chev"));
-		pill.setAttribute("aria-label", others.length === 1 ? `${first.name} ${what}. Open` : `${others.length} sessions need you. Show them`);
+		pill.setAttribute("aria-label", others.length === 1 ? tr("{name} {what}. Open", { name: first.name, what }) : tr("{n} sessions need you. Show them", { n: others.length }));
 		pill.onclick = () => (others.length === 1 ? openAgent(first.agent) : sessionsSheet());
 		pill.hidden = false;
 	}
@@ -1904,14 +1943,14 @@
 		const native = window.PiNative ? S.push.native?.computers || [] : null;
 		const on = window.PiNative ? !!S.push.native?.on || native.length > 0 : S.push.on;
 		for (const m of fleet.machines) {
-			const name = m.name || "Your computer";
+			const name = m.name || tr("Your computer");
 			let line;
-			if (!on) line = `${name} won't notify this phone: notifications are off.`;
+			if (!on) line = tr("{name} won't notify this phone: notifications are off.", { name });
 			else if (native) {
 				const c = native.find((x) => x.machine === m.id);
-				line = c?.notify ? `${name} notifies this phone.` : `${name} won't notify this phone${c?.why ? `: it ${c.why}` : " yet"}.`;
-			} else if (S.notifyOn.get(m.id)) line = `${name} notifies this phone.`;
-			else line = `${name} won't notify this phone: ${m.state !== "online" ? "it isn't reachable right now" : S.notifyWhy.get(m.id) || "it doesn't have this phone's subscription yet"}.`;
+				line = c?.notify ? tr("{name} notifies this phone.", { name }) : c?.why ? tr("{name} won't notify this phone: it {why}.", { name, why: c.why }) : tr("{name} won't notify this phone yet.", { name });
+			} else if (S.notifyOn.get(m.id)) line = tr("{name} notifies this phone.", { name });
+			else line = tr("{name} won't notify this phone: {why}.", { name, why: m.state !== "online" ? tr("it isn't reachable right now") : S.notifyWhy.get(m.id) || tr("it doesn't have this phone's subscription yet") });
 			body.appendChild(el("p", "note notify-line", line));
 		}
 	}
@@ -1935,14 +1974,14 @@
 		box.hidden = !kind;
 		if (!kind) return;
 		const text = box.querySelector(".onboard-text");
-		if (kind === "homescreen") text.replaceChildren(el("b", "", "Get notified on this iPhone"), el("span", "", "Add pi to your Home Screen first"));
-		else text.replaceChildren(el("b", "", "Turn on notifications"), el("span", "", "When pi finishes or needs you"));
+		if (kind === "homescreen") text.replaceChildren(el("b", "", tr("Get notified on this iPhone")), el("span", "", tr("Add pi to your Home Screen first")));
+		else text.replaceChildren(el("b", "", tr("Turn on notifications")), el("span", "", tr("When pi finishes or needs you")));
 		$("onboardYes").onclick = () => {
 			store.set("pi-mobile-onboarded", true);
 			box.hidden = true;
 			if (kind === "native") setNativePush(true);
 			else if (kind === "web") setPush(true);
-			else toast("In Safari tap Share → Add to Home Screen, open pi from there, then turn notifications on.");
+			else toast(tr("In Safari tap Share → Add to Home Screen, open pi from there, then turn notifications on."));
 		};
 		$("onboardNo").onclick = () => {
 			store.set("pi-mobile-onboarded", true);
@@ -1978,7 +2017,7 @@
 		closeSheet();
 		try {
 			S.consent = (await callNative({ type: "consent.revoke" }))?.granted === true;
-			toast("Voice sharing off. pi asks again before voice mode or dictation.");
+			toast(tr("Voice sharing off. pi asks again before voice mode or dictation."));
 		} catch (e) {
 			toast(e.message, "error");
 		}
@@ -1988,9 +2027,9 @@
 		closeSheet();
 		try {
 			S.push.native = await callNative({ type: "push.enable", on });
-			toast(on ? "Notifications on" : "Notifications off");
+			toast(on ? tr("Notifications on") : tr("Notifications off"));
 		} catch (e) {
-			toast(`Notifications: ${e.message}`, "error");
+			toast(tr("Notifications: {error}", { error: e.message }), "error");
 			await refreshNativePush();
 		}
 	}
@@ -2002,7 +2041,7 @@
 			await navigator.serviceWorker.ready;
 			let sub = await reg.pushManager.getSubscription();
 			if (on) {
-				if ((await Notification.requestPermission()) !== "granted") throw new Error("notifications are blocked for this site");
+				if ((await Notification.requestPermission()) !== "granted") throw new Error(tr("notifications are blocked for this site"));
 				sub ||= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: unb64u(S.push.key) });
 				S.push.key = b64u(new Uint8Array(sub.options.applicationServerKey));
 				S.push.fromSub = true;
@@ -2011,21 +2050,21 @@
 				if (!ok.some(Boolean)) {
 					await sub.unsubscribe().catch(() => {});
 					S.push.on = false;
-					const why = fleet.machines.map((m) => `${m.name || "your computer"}: ${m.state !== "online" ? "not reachable" : S.notifyWhy.get(m.id) || "no answer"}`);
-					throw new Error(`no computer accepted this phone (${why.join("; ")}). Try again when it is online.`);
+					const why = fleet.machines.map((m) => `${m.name || tr("your computer")}: ${m.state !== "online" ? tr("not reachable") : S.notifyWhy.get(m.id) || tr("no answer")}`);
+					throw new Error(tr("no computer accepted this phone ({why}). Try again when it is online.", { why: why.join("; ") }));
 				}
 				S.push.on = true;
 				const missed = ok.filter((x) => !x).length;
-				toast(missed ? `Notifications on (${missed} computer${missed === 1 ? "" : "s"} not yet: see the menu)` : "Notifications on");
+				toast(missed ? (missed === 1 ? tr("Notifications on (1 computer not yet: see the menu)") : tr("Notifications on ({n} computers not yet: see the menu)", { n: missed })) : tr("Notifications on"));
 			} else {
 				await Promise.all(fleet.machines.map((m) => fleet.rpc(m.id, "push", { subscription: null }).catch(() => {})));
 				await sub?.unsubscribe();
 				S.push.on = false;
 				for (const m of fleet.machines) S.notifyOn.set(m.id, false);
-				toast("Notifications off");
+				toast(tr("Notifications off"));
 			}
 		} catch (e) {
-			toast(`Notifications: ${e.message}`, "error");
+			toast(tr("Notifications: {error}", { error: e.message }), "error");
 		}
 	}
 
@@ -2041,7 +2080,7 @@
 			if (hub?.pushKey && S.push.key && hub.pushKey !== S.push.key) {
 				const source = fleet.machines.find((m) => m.id !== id && m.state === "online" && S.pushKeys.get(m.id) === S.push.key);
 				if (!source) {
-					S.notifyWhy.set(id, "it signs notifications with another key; turn notifications off and on again");
+					S.notifyWhy.set(id, tr("it signs notifications with another key; turn notifications off and on again"));
 					S.notifyOn.set(id, false);
 					return false;
 				}
@@ -2054,7 +2093,7 @@
 			return true;
 		} catch (e) {
 			S.notifyOn.set(id, false);
-			S.notifyWhy.set(id, e.message || "it refused the subscription");
+			S.notifyWhy.set(id, e.message || tr("it refused the subscription"));
 			return false;
 		}
 	}
@@ -2085,11 +2124,11 @@
 
 	// ── computers ──────────────────────────────────────────────────────────────────
 	function awayLine(m) {
-		if (m.state === "revoked") return "Removed this phone";
-		if (!m.lastSeen) return "Not reached yet";
+		if (m.state === "revoked") return tr("Removed this phone");
+		if (!m.lastSeen) return tr("Not reached yet");
 		const t = new Date(m.lastSeen);
 		const today = t.toDateString() === new Date().toDateString();
-		return `Offline since ${today ? t.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : t.toLocaleDateString([], { month: "short", day: "numeric" })}`;
+		return tr("Offline since {when}", { when: today ? t.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : t.toLocaleDateString([], { month: "short", day: "numeric" }) });
 	}
 
 	function forgetMachine(id) {
@@ -2097,7 +2136,7 @@
 			S.agents.delete(a);
 			S.prompts.delete(a);
 		}
-		if (!fleet.machines.length) return unpaired("You removed every computer");
+		if (!fleet.machines.length) return unpaired(tr("You removed every computer"));
 		if (!S.agents.has(S.current)) {
 			S.current = pickAgent();
 			loadCurrent();
@@ -2114,7 +2153,7 @@
 		openSheet(
 			(body) => {
 				if (sessions.length) {
-					section(body, "Sessions", sessions.length);
+					section(body, tr("Sessions"), sessions.length);
 					const g = group(body);
 					for (const a of sessions)
 						row(g, {
@@ -2129,22 +2168,22 @@
 						});
 				}
 				body.appendChild(el("div", "linkbox", m.primary ? location.origin : m.origin));
-				if (m.primary) body.appendChild(el("p", "note", "This computer serves the app on this phone. To stop using it, unpair this device from the menu."));
+				if (m.primary) body.appendChild(el("p", "note", tr("This computer serves the app on this phone. To stop using it, unpair this device from the menu.")));
 				else {
 					const b = el("button", "btn");
-					b.append(icon("logout"), "Remove from this phone");
+					b.append(icon("logout"), tr("Remove from this phone"));
 					b.style.color = "var(--err)";
 					b.onclick = async () => {
-						if (!confirm(`Remove ${m.name}? Its sessions leave your list and it can't reach this phone any more.`)) return;
+						if (!confirm(tr("Remove {name}? Its sessions leave your list and it can't reach this phone any more.", { name: m.name }))) return;
 						closeSheet();
 						await fleet.rpc(id, "revoke", { ids: [m.d] }).catch(() => {});
 						forgetMachine(id);
-						toast(`${m.name} removed`);
+						toast(tr("{name} removed", { name: m.name }));
 					};
 					body.appendChild(b);
 				}
 			},
-			{ title: m.name || "Computer", subtitle: m.state === "online" ? "Online" : awayLine(m) },
+			{ title: m.name || tr("Computer"), subtitle: m.state === "online" ? tr("Online") : awayLine(m) },
 		);
 	}
 
@@ -2171,7 +2210,7 @@
 		};
 		const add = () => {
 			fleet.add({ machine: offer.machine.id, name: offer.machine.name, origin: offer.origin, d: offer.d, k: offer.k });
-			toast(`${offer.machine.name} added`);
+			toast(tr("{name} added", { name: offer.machine.name }));
 			done();
 		};
 		if (S.accepted === offer.id) {
@@ -2184,11 +2223,11 @@
 		} catch {}
 		openSheet(
 			(body) => {
-				body.appendChild(el("p", "note", `Its pi sessions join your list, next to the others. ${offer.from ? `You asked for this on ${offer.from}.` : ""}`.trim()));
+				body.appendChild(el("p", "note", `${tr("Its pi sessions join your list, next to the others.")} ${offer.from ? tr("You asked for this on {from}.", { from: offer.from }) : ""}`.trim()));
 				body.appendChild(el("div", "linkbox", host));
-				const yes = el("button", "btn primary", "Add");
+				const yes = el("button", "btn primary", tr("Add"));
 				yes.onclick = add;
-				const no = el("button", "btn", "Not now");
+				const no = el("button", "btn", tr("Not now"));
 				no.onclick = async () => {
 					// Leave nothing behind there: this phone's key on that computer is revoked.
 					await fleet.rpcTo({ origin: offer.origin, d: offer.d, k: offer.k }, "revoke", { ids: [offer.d] }).catch(() => {});
@@ -2196,7 +2235,7 @@
 				};
 				body.append(yes, no);
 			},
-			{ title: `Add ${offer.machine.name}?`, subtitle: offer.from ? `From ${offer.from}` : undefined, unprompted: true },
+			{ title: tr("Add {name}?", { name: offer.machine.name }), subtitle: offer.from ? tr("From {from}", { from: offer.from }) : undefined, unprompted: true },
 		);
 	}
 
@@ -2206,7 +2245,7 @@
 		if (m && !m.primary) {
 			await fleet.rpc(m.id, "revoke", { ids: [m.d] }).catch(() => {});
 			forgetMachine(m.id);
-			toast(`${m.name} removed`);
+			toast(tr("{name} removed", { name: m.name }));
 		}
 		fleet.rpc(fromId, "offerDone", { id: offer.id }).catch(() => {});
 	}
@@ -2218,10 +2257,10 @@
 	function addComputerSheet(link) {
 		openSheet(
 			(body) => {
-				body.appendChild(el("p", "note", "Easiest: in pi on a computer this phone already uses, run /remote add <host>. Otherwise run /remote pair on the new computer and scan its code or paste its link here."));
+				body.appendChild(el("p", "note", tr("Easiest: in pi on a computer this phone already uses, run /remote add <host>. Otherwise run /remote pair on the new computer and scan its code or paste its link here.")));
 				if (canScan()) {
 					const scan = el("button", "btn");
-					scan.append(icon("qr"), "Scan QR code");
+					scan.append(icon("qr"), tr("Scan QR code"));
 					scan.onclick = startScan;
 					body.appendChild(scan);
 				}
@@ -2230,14 +2269,14 @@
 				input.placeholder = "https://….ts.net/#p=…";
 				input.autocomplete = "off";
 				const f = el("label", "field");
-				f.append(el("span", "", "Pairing link"), input);
-				const go = el("button", "btn primary", "Add computer");
+				f.append(el("span", "", tr("Pairing link")), input);
+				const go = el("button", "btn primary", tr("Add computer"));
 				go.onclick = async () => {
 					go.disabled = true;
 					try {
 						const name = await pairLink(input.value.trim());
 						closeSheet();
-						toast(`${name} added`);
+						toast(tr("{name} added", { name }));
 					} catch (e) {
 						toast(e.message, "error");
 					} finally {
@@ -2247,7 +2286,7 @@
 				body.append(f, go);
 				if (navigator.clipboard?.readText) {
 					const paste = el("button", "btn");
-					paste.append(icon("copy"), "Paste");
+					paste.append(icon("copy"), tr("Paste"));
 					paste.onclick = async () => {
 						try {
 							input.value = (await navigator.clipboard.readText()).trim();
@@ -2260,7 +2299,7 @@
 					go.click();
 				}
 			},
-			{ title: "Add a computer" },
+			{ title: tr("Add a computer") },
 		);
 	}
 
@@ -2275,17 +2314,17 @@
 			const r = await callNative({ type: "scan" });
 			if (r?.link) addComputerSheet(r.link);
 		} catch (e) {
-			if (e?.message !== "cancelled") toast(e?.message || "Couldn't scan", "error");
+			if (e?.message !== "cancelled") toast(e?.message || tr("Couldn't scan"), "error");
 		}
 	}
 
 	const SCAN_STATES = {
-		starting: { title: "Starting the camera…", spinner: true },
-		denied: { icon: "lock", title: "Camera access is off", text: "Allow the camera for this site in your browser's settings, or paste the link instead." },
-		none: { icon: "alert", title: "No camera found", text: "Paste the link that /remote pair shows instead." },
-		failed: { icon: "alert", title: "The camera didn't start", text: "Another app may be using it. Try again, or paste the link instead." },
+		starting: { title: tr("Starting the camera…"), spinner: true },
+		denied: { icon: "lock", title: tr("Camera access is off"), text: tr("Allow the camera for this site in your browser's settings, or paste the link instead.") },
+		none: { icon: "alert", title: tr("No camera found"), text: tr("Paste the link that /remote pair shows instead.") },
+		failed: { icon: "alert", title: tr("The camera didn't start"), text: tr("Another app may be using it. Try again, or paste the link instead.") },
 	};
-	const SCAN_HINT = "Point the camera at the QR code that /remote pair shows on the new computer.";
+	const SCAN_HINT = tr("Point the camera at the QR code that /remote pair shows on the new computer.");
 
 	function scanSheet() {
 		let stream = null;
@@ -2306,12 +2345,12 @@
 				const hint = el("p", "scan-hint", SCAN_HINT);
 				hint.setAttribute("role", "status");
 				const paste = el("button", "btn");
-				paste.append(icon("copy"), "Paste link instead");
+				paste.append(icon("copy"), tr("Paste link instead"));
 				paste.onclick = () => {
 					addComputerSheet();
 					$("sheetBody").querySelector("input")?.focus();
 				};
-				const cancel = el("button", "btn", "Cancel");
+				const cancel = el("button", "btn", tr("Cancel"));
 				cancel.onclick = () => addComputerSheet();
 				body.append(view, hint, paste, cancel);
 
@@ -2376,7 +2415,7 @@
 						}
 						if (text && text !== last) {
 							last = text;
-							hint.textContent = "That code isn't from pi. Scan the one /remote pair shows.";
+							hint.textContent = tr("That code isn't from pi. Scan the one /remote pair shows.");
 							view.dataset.wrong = "";
 						}
 						timer = setTimeout(tick, 200);
@@ -2384,7 +2423,7 @@
 					tick();
 				})();
 			},
-			{ title: "Scan the code" },
+			{ title: tr("Scan the code") },
 		);
 		// Leaving the app ends the scan: the camera never runs in the background.
 		const hidden = () => document.visibilityState === "hidden" && addComputerSheet();
@@ -2437,12 +2476,12 @@
 		try {
 			url = new URL(text);
 		} catch {
-			throw new Error("That isn't a pairing link");
+			throw new Error(tr("That isn't a pairing link"));
 		}
 		const m = /[#&]p=([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)/.exec(url.hash);
-		if (!m) throw new Error("That link has no pairing code; run /remote pair on the computer");
-		if (url.origin === location.origin) throw new Error("That's the computer this app runs on");
-		if (url.protocol !== "https:") throw new Error("Only HTTPS addresses work here (for example its Tailscale address)");
+		if (!m) throw new Error(tr("That link has no pairing code; run /remote pair on the computer"));
+		if (url.origin === location.origin) throw new Error(tr("That's the computer this app runs on"));
+		if (url.protocol !== "https:") throw new Error(tr("Only HTTPS addresses work here (for example its Tailscale address)"));
 		const key = unb64u(m[2]);
 		let res;
 		try {
@@ -2452,7 +2491,7 @@
 				body: JSON.stringify({ p: m[1], b: seal(key, { t: Date.now(), name: deviceName() }) }),
 			});
 		} catch {
-			throw new Error(`Couldn't reach ${url.host}. Is it on your tailnet, with pi running?`);
+			throw new Error(tr("Couldn't reach {host}. Is it on your tailnet, with pi running?", { host: url.host }));
 		}
 		const body = await res.json();
 		if (!res.ok || !body.b) throw new Error(body.error || `HTTP ${res.status}`);
@@ -2671,7 +2710,7 @@
 		const paired = await pairFromHash();
 		if (paired === "failed") return;
 		if (!S.device) return unpaired();
-		showEmpty(`<span class="spinner" aria-hidden="true"></span><p>Connecting to ${esc(several() ? "your computers" : S.device.host || "your computer")}…</p>`);
+		showEmpty(`<span class="spinner" aria-hidden="true"></span><p>${tr("Connecting to {host}…", { host: esc(several() ? tr("your computers") : S.device.host || tr("your computer")) })}</p>`);
 		S.current = store.get(AGENT_KEY);
 		setHeader();
 		fleet.start();

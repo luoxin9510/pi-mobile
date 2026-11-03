@@ -213,6 +213,30 @@ globalThis.PiLocaleZh = {
 	"Connected to {n} computers": "已连接 {n} 台电脑",
 	"Connected to {host}": "已连接 {host}",
 
+	// ── changes: what pi changed in the folder ───────────────────────────────────
+	"What pi changed in this folder": "pi 在这个文件夹里改了什么",
+	Modified: "已修改",
+	Added: "已添加",
+	New: "新文件",
+	Deleted: "已删除",
+	Conflict: "冲突",
+	"Loading…": "正在加载…",
+	binary: "二进制",
+	"This session's folder isn't in a git repository, so there are no changes to show.": "这个会话的文件夹不在 git 仓库里，没有改动可以显示。",
+	"No uncommitted changes. Everything here matches the last commit.": "没有未提交的改动，和最近一次提交完全一致。",
+	Files: "文件",
+	"…and {n} more files not listed.": "……还有 {n} 个文件没有列出。",
+	Refresh: "刷新",
+	"No line changes (only the file's mode or type changed).": "没有内容改动（只改了文件权限或类型）。",
+	"The diff is long: this is its first part.": "diff 太长，这里只显示前面一部分。",
+	"View whole file": "查看完整文件",
+	"All changes": "全部改动",
+	"This file no longer exists.": "这个文件已经不存在了。",
+	"This is a binary file ({size}); it can't be shown as text.": "这是二进制文件（{size}），无法以文本显示。",
+	"This file is too big to show here ({size}).": "这个文件太大，无法在这里显示（{size}）。",
+	"Back to the diff": "返回 diff",
+	"{n} lines": "{n} 行",
+
 	// ── pairing another device, devices ──────────────────────────────────────────
 	"This computer has no secure address yet. Run /remote on it to set one up.": "这台电脑还没有安全地址。在它上面运行 /remote 来设置。",
 	"Single use, valid for 10 minutes. Whoever opens it gets full control of your pi sessions, so send it only to your own devices.":

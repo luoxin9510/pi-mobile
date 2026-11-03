@@ -497,6 +497,14 @@ textarea#input::placeholder { color: var(--muted); white-space: nowrap; overflow
 .btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 50px; margin-top: 16px; border-radius: var(--r-m); background: var(--panel-2); font-size: 16px; font-weight: 650; }
 .btn.primary { background: var(--accent); color: var(--accent-text); }
 .btn + .btn { margin-top: 8px; }
+.btn .i.back { transform: rotate(180deg); }
+/* Changes sheet: "+12 −3" in the diff colours; a deleted file reads struck through. */
+.delta { display: flex; gap: 6px; flex: none; font-family: var(--mono); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--muted); }
+.delta .a { color: var(--add-ink); }
+.delta .d { color: var(--del-ink); }
+.row.change.deleted .title { text-decoration: line-through; color: var(--text-2); }
+pre.file-text { max-height: 60vh; overflow: auto; }
+.sheet-panel pre.diff { max-height: 60vh; overflow: auto; }
 .linkbox { margin-top: 8px; font-family: var(--mono); font-size: 13px; line-height: 1.45; padding: 12px 14px; border-radius: var(--r-m); background: var(--code-bg); border: 1px solid var(--border); word-break: break-all; color: var(--text-2); }
 
 /* ── toasts ───────────────────────────────────────────────────────────────────── */

@@ -1216,14 +1216,14 @@
 		card.append(eyebrow, el("div", "ptitle", p.title));
 		if (p.message) card.appendChild(el("div", "pmsg", p.message));
 		const answer = async (value, btn) => {
-			card.querySelectorAll("button,input").forEach((b) => (b.disabled = true));
+			card.querySelectorAll("button,input,textarea").forEach((b) => (b.disabled = true));
 			answered.set(p.id, true);
 			try {
 				await call("answer", { id: p.id, value });
 			} catch (e) {
 				answered.delete(p.id);
 				toast(e.message, "error");
-				card.querySelectorAll("button,input").forEach((b) => (b.disabled = false));
+				card.querySelectorAll("button,input,textarea").forEach((b) => (b.disabled = false));
 			}
 		};
 		const act = el("div", "pact");
@@ -1246,6 +1246,18 @@
 			const cancel = el("button", "ghost", tr("Cancel"));
 			cancel.onclick = () => answer(undefined);
 			act.appendChild(cancel);
+		} else if (p.kind === "editor") {
+			// Multi-line text, opened with what the terminal editor shows; Return is a new line.
+			const area = el("textarea");
+			area.value = p.prefill || "";
+			area.rows = Math.min(12, Math.max(4, area.value.split("\n").length + 1));
+			area.spellcheck = false;
+			card.appendChild(area);
+			const ok = el("button", "primary", tr("Submit"));
+			const cancel = el("button", "", tr("Cancel"));
+			ok.onclick = () => answer(area.value);
+			cancel.onclick = () => answer(undefined);
+			act.append(ok, cancel);
 		} else {
 			const input = el("input");
 			input.placeholder = p.placeholder || "";

@@ -390,6 +390,7 @@ pre.diff .h { color: var(--muted); }
 .prompt .pact.col button .i { color: var(--muted); width: 18px; height: 18px; }
 .prompt .pact button.ghost { background: none; color: var(--muted); min-height: 40px; font-weight: 550; }
 .prompt input { width: 100%; height: 48px; margin-top: 12px; padding: 0 14px; border-radius: var(--r-m); border: 1px solid var(--border-strong); background: var(--bg); font-size: 16px; }
+.prompt textarea { display: block; width: 100%; max-height: 45dvh; margin-top: 12px; padding: 10px 14px; border-radius: var(--r-m); border: 1px solid var(--border-strong); background: var(--bg); font-family: var(--mono); font-size: 16px; line-height: 1.45; resize: vertical; }
 .prompt .pfoot { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin-top: 10px; font-variant-numeric: tabular-nums; }
 .prompt .pfoot .i { width: 14px; height: 14px; }
 @keyframes rise { from { transform: translateY(12px); opacity: 0; } }

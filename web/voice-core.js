@@ -117,6 +117,9 @@
 			return { unclear: true };
 		}
 		if (/^(?:cancel|never ?mind|skip)$/.test(t)) return { value: undefined };
+		// An editor that opens with text (a script to review, a prompt to edit): a spoken reply would
+		// replace all of it, so by voice it is kept as it is or cancelled; edits happen on the screen.
+		if (prompt.kind === "editor" && prompt.prefill) return YES.test(t) || /\bkeep\b/.test(t) ? { value: prompt.prefill } : { unclear: true };
 		return { value: String(text || "").trim() };
 	}
 
@@ -157,6 +160,7 @@
 			const rest = o.length > page * 2 + 2 ? ` Or say "more options". There are ${o.length}.` : "";
 			return `${page ? "" : `${q} `}${named.join(". ")}.${rest}`;
 		}
+		if (prompt.kind === "editor" && prompt.prefill) return `${q} Say "keep it" to accept the text as it is, or cancel. To change it, edit it on the screen.`;
 		return `${q} What should I answer?`;
 	}
 

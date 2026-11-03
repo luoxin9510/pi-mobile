@@ -44,7 +44,7 @@ export type Item =
 	| { k: "custom"; id: string; customType: string; text: string; ts: number }
 	| { k: "summary"; id: string; kind: "compaction" | "branch"; text: string; ts: number };
 
-export type PromptKind = "select" | "confirm" | "input";
+export type PromptKind = "select" | "confirm" | "input" | "editor";
 
 export interface Prompt {
 	id: string;
@@ -53,6 +53,8 @@ export interface Prompt {
 	message?: string;
 	options?: string[];
 	placeholder?: string;
+	/** editor: the text it opens with. */
+	prefill?: string;
 	expiresAt?: number;
 }
 

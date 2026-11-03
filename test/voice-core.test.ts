@@ -388,3 +388,14 @@ test("switching by voice: names, the computer's name, and asking when two comput
 	const one = list.map((x) => ({ ...x, machine: "" })).slice(0, 1).concat([{ agent: "3", name: "web", cwd: "/w/web", task: "", machine: "" }]);
 	assert.equal(V.matchSession(one, "switch to web").match.agent, "3");
 });
+
+test("voice: an editor that opens with text is kept or cancelled by voice, never overwritten", () => {
+	const script = { id: "e", kind: "editor", title: "Review the script", prefill: "rm -rf build\n" };
+	assert.deepEqual(V.answerFor(script, "keep it"), { value: "rm -rf build\n" });
+	assert.deepEqual(V.answerFor(script, "yes"), { value: "rm -rf build\n" });
+	assert.deepEqual(V.answerFor(script, "cancel"), { value: undefined });
+	assert.deepEqual(V.answerFor(script, "change it to make clean"), { unclear: true });
+	assert.match(V.speakPrompt(script), /keep it/);
+	const blank = { id: "b", kind: "editor", title: "Write the commit message" };
+	assert.deepEqual(V.answerFor(blank, "fix the login bug"), { value: "fix the login bug" });
+});

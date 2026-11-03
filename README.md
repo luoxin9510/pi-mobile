@@ -121,6 +121,15 @@ If you run pi inside [herdr](https://herdr.dev), pi-mobile adds two things; outs
 - **herdr's sidebar shows pi's questions.** Any pi dialog marks the pane *blocked*, so herdr and your phone agree on who needs you.
 - **Start sessions from the phone.** Sessions → **New session**: pick a folder and an optional first prompt. herdr opens a tab there, starts pi, and the phone opens the new session.
 
+## Background sessions (pi-roost, optional)
+
+With [pi-roost](https://github.com/luoxin9510/pi-roost) installed, background pi sessions are on the phone like any other: each runs pi with your packages, so it links to the hub by itself, and they keep going after you close the terminal.
+
+- **Start one from the phone.** Sessions → **New session** → **Background session**: a folder and an optional first prompt; pi-roost starts it and the phone opens it. Inside herdr you choose between a herdr tab and a background session.
+- **In use stays running.** pi-roost stops sessions that sit idle for an hour; one you have open or act on from the phone counts as in use.
+
+Other extensions can offer the same: they register a *starter* on pi's event bus (`pi-mobile:starters`) and may listen for `pi-mobile:activity`. The contract is at the top of [src/starters.ts](src/starters.ts).
+
 ## Several computers: a laptop and cloud boxes
 
 Every session on every computer, in one list on the phone, each labelled with its computer. A cloud box keeps working while your laptop sleeps, so it suits sessions you steer from the phone.

@@ -71,7 +71,19 @@ function host() {
 		abort: () => sent.push({ abort: true }),
 		compact: (o: any) => sent.push({ compact: o ?? {} }),
 	};
+	// pi's event bus: synchronous emit, like pi's EventEmitter-backed one
+	const bus = new Map<string, ((d: unknown) => void)[]>();
+	const events = {
+		emit: (ch: string, d: unknown) => {
+			for (const f of bus.get(ch) ?? []) f(d);
+		},
+		on: (ch: string, f: (d: unknown) => void) => {
+			bus.set(ch, [...(bus.get(ch) ?? []), f]);
+			return () => bus.set(ch, (bus.get(ch) ?? []).filter((x) => x !== f));
+		},
+	};
 	const pi: any = {
+		events,
 		on: (name: string, fn: Handler) => handlers.set(name, [...(handlers.get(name) ?? []), fn]),
 		registerFlag: () => {},
 		getFlag: (n: string) => n === "remote",
@@ -92,7 +104,7 @@ function host() {
 		for (const fn of handlers.get(name) ?? []) results.push(await fn({ type: name, ...event }, ctx));
 		return results;
 	};
-	return { fire, ctx, sent, statuses, notes, localDialogs, thinking: () => thinking, setIdle: (v: boolean) => (idle = v) };
+	return { fire, ctx, sent, statuses, notes, localDialogs, events, thinking: () => thinking, setIdle: (v: boolean) => (idle = v) };
 }
 
 let h: ReturnType<typeof host>;
@@ -182,6 +194,39 @@ test("prompts from the phone reach pi, steering or queueing while it works", asy
 	assert.deepEqual(h.sent.at(-1), { abort: true });
 	h.setIdle(true);
 	await assert.rejects(call("send", { text: "  " }), /empty/);
+});
+
+test("another extension can start sessions for the phone; phone calls are reported as activity", async () => {
+	const activity: string[] = [];
+	const offActivity = h.events.on("pi-mobile:activity", (d: any) => activity.push(d.action));
+	await call("models");
+	assert.ok(activity.includes("models"), "a phone call is activity in this session");
+
+	await assert.rejects(call("spawn", { cwd: dir, spawnId: "s0" }), /nothing on this computer can start a session/);
+	const started: any[] = [];
+	const off = h.events.on("pi-mobile:starters", ({ register }: any) => {
+		register({ id: "herdr", label: "fake", start: async () => ({}) }); // the built-in id is refused
+		register({ id: "bg", label: "Background session", start: async (req: any) => (started.push(req), { name: "job 1" }) });
+		register({ id: "bad" }); // incomplete: ignored
+	});
+	try {
+		const snap = await call("snapshot");
+		assert.deepEqual(snap.info.starters, [{ id: "bg", label: "Background session" }]);
+		assert.deepEqual(await call("spawn", { cwd: dir, prompt: "  fix it ", spawnId: "s1", via: "bg" }), { name: "job 1" });
+		assert.deepEqual(started, [{ cwd: dir, prompt: "fix it", env: { PI_MOBILE_SPAWN: "s1" } }]);
+		// no via: the first starter (outside herdr)
+		await call("spawn", { cwd: dir, spawnId: "s2" });
+		assert.deepEqual(started.at(-1), { cwd: dir, prompt: undefined, env: { PI_MOBILE_SPAWN: "s2" } });
+		await assert.rejects(call("spawn", { cwd: "relative", spawnId: "s3", via: "bg" }), /absolute/);
+		await assert.rejects(call("spawn", { cwd: join(dir, "missing"), spawnId: "s3", via: "bg" }), /not a folder/);
+		await assert.rejects(call("spawn", { cwd: dir, spawnId: "s3", via: "nope" }), /nope can't start sessions/);
+		await assert.rejects(call("spawn", { cwd: dir, spawnId: "s3", via: "herdr" }), /does not run inside herdr/);
+		assert.equal(started.length, 2);
+	} finally {
+		off();
+		offActivity();
+	}
+	assert.equal((await call("snapshot")).info.starters, undefined);
 });
 
 test("model, thinking and command lists", async () => {

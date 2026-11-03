@@ -25,6 +25,8 @@ export interface AgentInfo {
 	last?: string;
 	/** This pi runs inside herdr, so it can start new sessions for the phone. */
 	herdr?: boolean;
+	/** Other ways this pi can start new sessions for the phone (see src/starters.ts). */
+	starters?: { id: string; label: string }[];
 	/** Set on a session the phone asked herdr to start, so the phone can open it. */
 	spawn?: string;
 	/** When the current run started (ms epoch), for "Working · 0:42". */

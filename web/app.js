@@ -1558,7 +1558,7 @@
 					const g = group(body);
 					for (const m of away) row(g, { lead: el("span", "lead dot gone"), title: m.name || "Computer", sub: awayLine(m), cls: "plain", onclick: () => machineSheet(m.id) });
 				}
-				if (all.some((a) => a.herdr)) {
+				if (all.some((a) => a.herdr || a.starters?.length)) {
 					const add = el("button", "btn");
 					add.append(icon("plus"), "New session");
 					add.onclick = () => newSessionSheet();
@@ -1569,13 +1569,25 @@
 		);
 	}
 
-	/** Starts pi in a herdr tab on a computer: pick it (if several run herdr), a folder, and maybe a first prompt. */
-	function newSessionSheet(machineId) {
-		// One session per computer that runs herdr carries the request there.
+	/**
+	 * Starts pi on a computer: pick it (if several can), where (a herdr tab, or a starter such as
+	 * pi-roost's background sessions, if a computer offers more than one), a folder, and maybe a
+	 * first prompt.
+	 */
+	function newSessionSheet(machineId, wayId) {
+		// Per computer, each way to start and one session that carries the request there.
 		const starters = new Map();
-		for (const a of S.agents.values()) if (a.herdr && !starters.has(fleet.machineOf(a.agent))) starters.set(fleet.machineOf(a.agent), a.agent);
+		for (const a of S.agents.values()) {
+			const m = fleet.machineOf(a.agent);
+			const ways = starters.get(m) ?? new Map();
+			if (a.herdr && !ways.has("herdr")) ways.set("herdr", { label: "herdr tab", agent: a.agent });
+			for (const s of a.starters ?? []) if (!ways.has(s.id)) ways.set(s.id, { label: s.label, agent: a.agent });
+			if (ways.size) starters.set(m, ways);
+		}
 		const target = machineId && starters.has(machineId) ? machineId : starters.has(fleet.machineOf(S.current)) ? fleet.machineOf(S.current) : [...starters.keys()][0];
-		const starter = starters.get(target);
+		const ways = starters.get(target);
+		const way = wayId && ways.has(wayId) ? wayId : [...ways.keys()][0];
+		const starter = ways.get(way).agent;
 		const folders = [...new Set([...S.agents.values()].filter((a) => fleet.machineOf(a.agent) === target).map((a) => a.cwd))].sort();
 		const where = fleet.get(target)?.name || "your computer";
 		openSheet((body) => {
@@ -1589,6 +1601,20 @@
 					const b = el("button", "", fleet.get(id)?.name || "Computer");
 					b.setAttribute("aria-pressed", String(id === target));
 					b.onclick = () => id !== target && newSessionSheet(id);
+					seg.appendChild(b);
+				}
+				body.appendChild(seg);
+			}
+			if (ways.size > 1) {
+				section(body, "Start in");
+				const seg = el("div", "seg wide");
+				seg.setAttribute("role", "group");
+				seg.setAttribute("aria-label", "Start in");
+				if (ways.size > 2) seg.style.gridTemplateColumns = `repeat(${ways.size}, 1fr)`;
+				for (const [id, w] of ways) {
+					const b = el("button", "", w.label);
+					b.setAttribute("aria-pressed", String(id === way));
+					b.onclick = () => id !== way && newSessionSheet(target, id);
 					seg.appendChild(b);
 				}
 				body.appendChild(seg);
@@ -1613,7 +1639,7 @@
 				const spawnId = Math.random().toString(36).slice(2, 10);
 				try {
 					S.spawning = spawnId;
-					await call("spawn", { cwd: folder.value.trim(), prompt: prompt.value, spawnId }, starter);
+					await call("spawn", { cwd: folder.value.trim(), prompt: prompt.value, spawnId, via: way }, starter);
 					closeSheet();
 					toast("Starting pi…");
 				} catch (e) {
@@ -1627,7 +1653,7 @@
 			const f2 = el("label", "field");
 			f2.append(el("span", "", "First prompt"), prompt);
 			body.append(f1, f2, go);
-		}, { title: "New session", subtitle: `Starts pi in a new herdr tab on ${where}` });
+		}, { title: "New session", subtitle: way === "herdr" ? `Starts pi in a new herdr tab on ${where}` : `${ways.get(way).label} on ${where}` });
 	}
 
 	async function modelSheet() {

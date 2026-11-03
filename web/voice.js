@@ -987,6 +987,9 @@
 				acts.classList.add("col");
 				for (const o of (p.options || []).slice(0, 6)) button(o, V.isDestructive({ title: o }) ? "danger" : "", o);
 				button("Cancel", "ghost", undefined);
+			} else if (p.kind === "editor" && p.prefill) {
+				button("Keep it", "primary", p.prefill);
+				button("Cancel", "", undefined);
 			}
 			box.replaceChildren(
 				eyebrow("pi asks"),
@@ -1300,7 +1303,7 @@
 			const opts = prompt.options?.length ? `\nOptions: ${prompt.options.map((o, i) => `${i + 1}. ${o}`).join("; ")}` : "";
 			this.tell(
 				V.speakPrompt(prompt),
-				`[PI] QUESTION (id ${prompt.id}, ${prompt.kind}${destructive ? ", DESTRUCTIVE: needs explicit confirmation naming the action" : ""}): ${prompt.title}${prompt.message ? ` — ${prompt.message}` : ""}${opts}`,
+				`[PI] QUESTION (id ${prompt.id}, ${prompt.kind}${destructive ? ", DESTRUCTIVE: needs explicit confirmation naming the action" : ""}): ${prompt.title}${prompt.message ? ` — ${prompt.message}` : ""}${opts}${prompt.kind === "editor" && prompt.prefill ? " (an editor that already holds text: by voice it can only be kept as it is or cancelled; changes are made on the screen)" : ""}`,
 				"asking",
 			);
 		}

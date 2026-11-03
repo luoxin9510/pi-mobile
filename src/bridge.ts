@@ -637,6 +637,8 @@ async function terminalEditor(ui: UI, title: string, prefill: string | undefined
 }
 
 function hostedEditor(ui: UI, title: string, prefill: string | undefined, signal: AbortSignal | undefined): Promise<string | undefined> {
+	// `blocked` reports pi as waiting on you (OSC 7501), the way pi's own editor dialog does; pi before 1.5 ignores it.
+	const options = { blocked: { kind: "question", message: title } } as Parameters<UI["custom"]>[1];
 	return ui.custom<string | undefined>((tui, _theme, keybindings, done) => {
 		let closed = false;
 		const finish = (v: string | undefined) => {
@@ -646,20 +648,22 @@ function hostedEditor(ui: UI, title: string, prefill: string | undefined, signal
 		};
 		if (signal?.aborted) queueMicrotask(() => finish(undefined));
 		else signal?.addEventListener("abort", () => finish(undefined), { once: true });
+		// Ctrl+G opens $VISUAL/$EDITOR: an extension cannot read pi's own external-editor setting.
 		return new ExtensionEditorComponent(tui, keybindings, title, prefill, (v) => finish(v), () => finish(undefined));
-	});
+	}, options);
 }
 
 /**
  * Whether a terminal dialog the phone cannot answer leaves the session waiting on you.
- * select/confirm/input/editor are mirrored as answerable prompts (an editor shown through ui.custom
- * opens while its phone prompt is already open). Other custom components are mostly panels you
+ * select/confirm/input are mirrored as answerable prompts. A mirrored editor is shown through
+ * ui.custom while its phone prompt is already open; an editor pi reports as such is not mirrored. Other custom components are mostly panels you
  * opened yourself, such as an agent view or the pairing QR code: they hold up pi only when a tool
  * opened one in the middle of a run.
  */
 export function waitsOnTerminal(kind: string, working: boolean, mirroredOpen: boolean): boolean {
-	if (kind === "select" || kind === "confirm" || kind === "input" || kind === "editor") return false;
+	if (kind === "select" || kind === "confirm" || kind === "input") return false;
 	if (mirroredOpen) return false;
+	if (kind === "editor") return true; // not mirrored: outside the TUI, or opened before sharing started
 	return kind !== "custom" || working;
 }
 

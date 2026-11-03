@@ -1198,9 +1198,11 @@
 	}
 
 	const answered = new Map();
+	const editorDrafts = new Map(); // prompt id → text typed in its editor card so far
 	function renderPrompts(endEv) {
 		const box = $("prompts");
 		const map = S.prompts.get(S.current) || new Map();
+		if (endEv) editorDrafts.delete(endEv.id);
 		if (endEv && answered.has(endEv.id)) answered.delete(endEv.id);
 		else if (endEv && endEv.by === "terminal") toast(tr("Answered in the terminal"));
 		box.replaceChildren(...[...map.values()].map(promptNode));
@@ -1249,7 +1251,8 @@
 		} else if (p.kind === "editor") {
 			// Multi-line text, opened with what the terminal editor shows; Return is a new line.
 			const area = el("textarea");
-			area.value = p.prefill || "";
+			area.value = editorDrafts.get(p.id) ?? (p.prefill || "");
+			area.oninput = () => editorDrafts.set(p.id, area.value);
 			area.rows = Math.min(12, Math.max(4, area.value.split("\n").length + 1));
 			area.spellcheck = false;
 			card.appendChild(area);
